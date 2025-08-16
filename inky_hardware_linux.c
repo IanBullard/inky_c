@@ -61,7 +61,7 @@ inky_t* inky_init(bool emulator) {
     }
     
     // Configure SPI
-    uint8_t mode = SPI_MODE;
+    uint8_t mode = SPI_MODE | SPI_NO_CS;  // Disable hardware CS, we'll control it via GPIO
     uint8_t bits = SPI_BITS_PER_WORD;
     uint32_t speed = SPI_SPEED_HZ;
     
@@ -85,28 +85,62 @@ inky_t* inky_init(bool emulator) {
         return NULL;
     }
     
-    // Request GPIO lines
-    struct gpiohandle_request req;
-    req.lineoffsets[0] = INKY_RESET_PIN;
-    req.lineoffsets[1] = INKY_DC_PIN;
-    req.lineoffsets[2] = INKY_CS_PIN;
-    req.lines = 3;
-    req.flags = GPIOHANDLE_REQUEST_OUTPUT;
-    req.default_values[0] = 1;  // Reset high
-    req.default_values[1] = 0;  // DC low
-    req.default_values[2] = 1;  // CS high (inactive)
-    strcpy(req.consumer_label, "inky");
+    // Request RESET GPIO line
+    struct gpiohandle_request reset_req;
+    reset_req.lineoffsets[0] = INKY_RESET_PIN;
+    reset_req.lines = 1;
+    reset_req.flags = GPIOHANDLE_REQUEST_OUTPUT;
+    reset_req.default_values[0] = 1;  // Reset high
+    strcpy(reset_req.consumer_label, "inky_reset");
     
-    if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &req) < 0) {
-        perror("Failed to request GPIO lines for output");
+    if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &reset_req) < 0) {
+        perror("Failed to request RESET GPIO line");
         close(display->gpio_chip_fd);
         close(display->spi_fd);
         free(display->buffer);
         free(display);
         return NULL;
     }
+    display->reset_line = reset_req.fd;
     
-    display->reset_line = req.fd;
+    // Request DC GPIO line
+    struct gpiohandle_request dc_req;
+    dc_req.lineoffsets[0] = INKY_DC_PIN;
+    dc_req.lines = 1;
+    dc_req.flags = GPIOHANDLE_REQUEST_OUTPUT;
+    dc_req.default_values[0] = 0;  // DC low
+    strcpy(dc_req.consumer_label, "inky_dc");
+    
+    if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &dc_req) < 0) {
+        perror("Failed to request DC GPIO line");
+        close(display->reset_line);
+        close(display->gpio_chip_fd);
+        close(display->spi_fd);
+        free(display->buffer);
+        free(display);
+        return NULL;
+    }
+    display->dc_line = dc_req.fd;
+    
+    // Request CS GPIO line
+    struct gpiohandle_request cs_req;
+    cs_req.lineoffsets[0] = INKY_CS_PIN;
+    cs_req.lines = 1;
+    cs_req.flags = GPIOHANDLE_REQUEST_OUTPUT;
+    cs_req.default_values[0] = 1;  // CS high (inactive)
+    strcpy(cs_req.consumer_label, "inky_cs");
+    
+    if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &cs_req) < 0) {
+        perror("Failed to request CS GPIO line");
+        close(display->dc_line);
+        close(display->reset_line);
+        close(display->gpio_chip_fd);
+        close(display->spi_fd);
+        free(display->buffer);
+        free(display);
+        return NULL;
+    }
+    display->cs_line = cs_req.fd;
     
     // Request BUSY pin as input
     struct gpiohandle_request busy_req;
@@ -142,6 +176,8 @@ void inky_destroy(inky_t *display) {
     
     if (!display->is_emulator) {
         if (display->reset_line > 0) close(display->reset_line);
+        if (display->dc_line > 0) close(display->dc_line);
+        if (display->cs_line > 0) close(display->cs_line);
         if (display->busy_line > 0) close(display->busy_line);
         if (display->gpio_chip_fd > 0) close(display->gpio_chip_fd);
         if (display->spi_fd > 0) close(display->spi_fd);
@@ -195,9 +231,9 @@ void inky_set_border(inky_t *display, uint8_t color) {
     display->border_color = color & 0x07;
 }
 
-static void gpio_set_value(int fd, int line_index, int value) {
+static void gpio_set_value(int fd, int value) {
     struct gpiohandle_data data;
-    data.values[line_index] = value;
+    data.values[0] = value;
     ioctl(fd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
 }
 
@@ -211,26 +247,26 @@ void inky_hw_send_command(inky_t *display, uint8_t command) {
     if (!display || display->is_emulator) return;
     
     // Set DC low for command
-    gpio_set_value(display->reset_line, 1, 0);  // DC is index 1
+    gpio_set_value(display->dc_line, 0);
     
-    // Set CS low
-    gpio_set_value(display->reset_line, 2, 0);  // CS is index 2
+    // Set CS low (active)
+    gpio_set_value(display->cs_line, 0);
     
     // Send command byte
     write(display->spi_fd, &command, 1);
     
-    // Set CS high
-    gpio_set_value(display->reset_line, 2, 1);
+    // Set CS high (inactive)
+    gpio_set_value(display->cs_line, 1);
 }
 
 void inky_hw_send_data(inky_t *display, const uint8_t *data, size_t len) {
     if (!display || display->is_emulator || !data || len == 0) return;
     
     // Set DC high for data
-    gpio_set_value(display->reset_line, 1, 1);  // DC is index 1
+    gpio_set_value(display->dc_line, 1);
     
-    // Set CS low
-    gpio_set_value(display->reset_line, 2, 0);  // CS is index 2
+    // Set CS low (active)
+    gpio_set_value(display->cs_line, 0);
     
     // Send data in chunks if needed
     const size_t chunk_size = 4096;
@@ -241,8 +277,8 @@ void inky_hw_send_data(inky_t *display, const uint8_t *data, size_t len) {
         offset += to_send;
     }
     
-    // Set CS high
-    gpio_set_value(display->reset_line, 2, 1);
+    // Set CS high (inactive)
+    gpio_set_value(display->cs_line, 1);
 }
 
 void inky_hw_busy_wait(inky_t *display) {
@@ -252,8 +288,14 @@ void inky_hw_busy_wait(inky_t *display) {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
     
+    printf("Waiting for busy signal...\n");
+    int busy_state = gpio_get_value(display->busy_line);
+    printf("Initial busy state: %d\n", busy_state);
+    
     while (1) {
-        if (gpio_get_value(display->busy_line) == 1) {
+        busy_state = gpio_get_value(display->busy_line);
+        if (busy_state == 1) {
+            printf("Display ready (busy went high)\n");
             break;  // Display is ready
         }
         
@@ -272,9 +314,9 @@ void inky_hw_reset(inky_t *display) {
     if (!display || display->is_emulator) return;
     
     // Reset sequence
-    gpio_set_value(display->reset_line, 0, 0);  // Reset low
+    gpio_set_value(display->reset_line, 0);  // Reset low
     usleep(100000);  // 100ms
-    gpio_set_value(display->reset_line, 0, 1);  // Reset high
+    gpio_set_value(display->reset_line, 1);  // Reset high
     usleep(100000);  // 100ms
     
     inky_hw_busy_wait(display);
@@ -283,9 +325,12 @@ void inky_hw_reset(inky_t *display) {
 void inky_hw_setup(inky_t *display) {
     if (!display || display->is_emulator) return;
     
+    printf("Initializing display hardware...\n");
+    
     // Reset the display
     inky_hw_reset(display);
     
+    printf("Sending initialization commands...\n");
     // Send initialization commands
     
     // Resolution Setting (600x448)
@@ -356,21 +401,27 @@ void inky_update(inky_t *display) {
         return;
     }
     
+    printf("Sending display data (%zu bytes)...\n", display->buffer_size);
     // Send display data
     inky_hw_send_command(display, UC8159_DTM1);
     inky_hw_send_data(display, display->buffer, display->buffer_size);
     
+    printf("Powering on display...\n");
     // Power on
     inky_hw_send_command(display, UC8159_PON);
     usleep(200000);  // 200ms
     
+    printf("Starting display refresh (this may take up to 32 seconds)...\n");
     // Display refresh
     inky_hw_send_command(display, UC8159_DRF);
     inky_hw_busy_wait(display);  // This can take up to 32 seconds
     
+    printf("Powering off display...\n");
     // Power off
     inky_hw_send_command(display, UC8159_POF);
     usleep(200000);  // 200ms
+    
+    printf("Display update complete.\n");
 }
 
 // Stub for emulator function
