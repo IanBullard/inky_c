@@ -288,14 +288,8 @@ void inky_hw_busy_wait(inky_t *display) {
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
     
-    printf("Waiting for busy signal...\n");
-    int busy_state = gpio_get_value(display->busy_line);
-    printf("Initial busy state: %d\n", busy_state);
-    
     while (1) {
-        busy_state = gpio_get_value(display->busy_line);
-        if (busy_state == 1) {
-            printf("Display ready (busy went high)\n");
+        if (gpio_get_value(display->busy_line) == 1) {
             break;  // Display is ready
         }
         
@@ -325,12 +319,9 @@ void inky_hw_reset(inky_t *display) {
 void inky_hw_setup(inky_t *display) {
     if (!display || display->is_emulator) return;
     
-    printf("Initializing display hardware...\n");
-    
     // Reset the display
     inky_hw_reset(display);
     
-    printf("Sending initialization commands...\n");
     // Send initialization commands
     
     // Resolution Setting (600x448)
@@ -401,27 +392,21 @@ void inky_update(inky_t *display) {
         return;
     }
     
-    printf("Sending display data (%zu bytes)...\n", display->buffer_size);
     // Send display data
     inky_hw_send_command(display, UC8159_DTM1);
     inky_hw_send_data(display, display->buffer, display->buffer_size);
     
-    printf("Powering on display...\n");
     // Power on
     inky_hw_send_command(display, UC8159_PON);
     usleep(200000);  // 200ms
     
-    printf("Starting display refresh (this may take up to 32 seconds)...\n");
     // Display refresh
     inky_hw_send_command(display, UC8159_DRF);
     inky_hw_busy_wait(display);  // This can take up to 32 seconds
     
-    printf("Powering off display...\n");
     // Power off
     inky_hw_send_command(display, UC8159_POF);
     usleep(200000);  // 200ms
-    
-    printf("Display update complete.\n");
 }
 
 // Stub for emulator function

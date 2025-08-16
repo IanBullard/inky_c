@@ -1,15 +1,17 @@
 # Inky C Library
 
-A C library implementation for the Inky Impression 5.7" (600x448) e-ink display.
+A C library implementation for the Inky Impression 5.7" (600x448) 7-color e-ink display. This library provides both hardware support for Raspberry Pi and an emulator for development/testing on any platform.
 
 ## Features
 
-- Support for Inky Impression 5.7" (600x448 resolution)
-- 7-color display support (Black, White, Green, Blue, Red, Yellow, Orange)
-- Hardware implementation for Raspberry Pi
-- Emulator implementation for development/testing on any platform
-- Efficient 4-bit packed pixel buffer
-- PPM image output for emulator
+- **Full Color Support**: All 7 colors plus clean (Black, White, Green, Blue, Red, Yellow, Orange)
+- **Dual Implementation**: 
+  - Hardware driver for Raspberry Pi (Linux ARM)
+  - Emulator for development on any platform
+- **Efficient Memory Usage**: 4-bit packed pixel buffer (2 pixels per byte)
+- **UC8159 Controller**: Full support for the UC8159 e-ink controller
+- **Manual GPIO Control**: Direct control of Reset, DC, CS, and Busy pins
+- **PPM Image Output**: Emulator saves display state as PPM images for testing
 
 ## Building
 
@@ -85,21 +87,96 @@ void inky_destroy(inky_t *display);
 
 ## Hardware Requirements
 
-For hardware operation on Raspberry Pi:
-- SPI enabled (`sudo raspi-config` -> Interface Options -> SPI)
-- Connected to SPI0 (CE0)
-- GPIO pins: Reset (BCM27), Busy (BCM17), DC (BCM22), CS (BCM8)
+### Raspberry Pi Setup
+
+1. **Enable SPI Interface**:
+   ```bash
+   sudo raspi-config
+   # Navigate to: Interface Options -> SPI -> Enable
+   ```
+
+2. **Pin Connections** (BCM numbering):
+   - **SPI0 MOSI**: GPIO 10 (Physical Pin 19)
+   - **SPI0 SCLK**: GPIO 11 (Physical Pin 23)
+   - **Reset**: GPIO 27 (Physical Pin 13)
+   - **Busy**: GPIO 17 (Physical Pin 11)
+   - **DC**: GPIO 22 (Physical Pin 15)
+   - **CS**: GPIO 8/CE0 (Physical Pin 24) - Manually controlled
+
+3. **Required Permissions**:
+   - Run with `sudo` for GPIO/SPI access
+   - Or add user to `gpio` and `spi` groups:
+     ```bash
+     sudo usermod -a -G gpio,spi $USER
+     # Logout and login for changes to take effect
+     ```
 
 ## File Structure
 
-- `inky.h` - Main header file with API definitions
-- `inky_emulator.c` - Emulator implementation (all platforms)
-- `inky_hardware_linux.c` - Hardware implementation (Raspberry Pi)
-- `test_clear.c` - Example program for clearing the display
-- `Makefile` - Build configuration
+```
+inky_c/
+├── inky.h                  # Main header with API definitions
+├── inky_emulator.c         # Emulator implementation (all platforms)
+├── inky_hardware_linux.c   # Hardware implementation (Raspberry Pi)
+├── test_clear.c            # Example: Clear display test program
+├── Makefile                # Build configuration
+├── run_on_pi.sh           # Helper script for Raspberry Pi
+└── README.md              # This documentation
+```
+
+## Implementation Details
+
+### Buffer Format
+- **Resolution**: 600x448 pixels
+- **Color Depth**: 4 bits per pixel (8 colors)
+- **Packing**: 2 pixels per byte (high nibble = even pixel, low nibble = odd pixel)
+- **Buffer Size**: 134,400 bytes (600 × 448 ÷ 2)
+
+### SPI Communication
+- **Speed**: 3 MHz
+- **Mode**: 0 (CPOL=0, CPHA=0)
+- **Chip Select**: Manual control via GPIO (SPI_NO_CS mode)
+- **Chunk Size**: 4096 bytes for data transmission
+
+### Display Update Sequence
+1. Send display data (UC8159_DTM1)
+2. Power on (UC8159_PON)
+3. Display refresh (UC8159_DRF) - waits for busy signal
+4. Power off (UC8159_POF)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Failed to open SPI device"**
+   - Ensure SPI is enabled: `sudo raspi-config`
+   - Check device exists: `ls /dev/spidev*`
+
+2. **"Failed to request GPIO lines"**
+   - Run with sudo or add user to gpio group
+   - Check GPIO chip exists: `ls /dev/gpiochip*`
+
+3. **Display doesn't update**
+   - Verify all connections are correct
+   - Check busy pin is properly connected
+   - Ensure display is powered
+   - Wait up to 32 seconds for refresh
+
+4. **Build fails on non-Linux**
+   - Use `make emulator` instead of `make hardware`
+   - Hardware version only builds on Raspberry Pi
 
 ## Notes
 
-- Display refresh on hardware can take up to 32 seconds
-- The emulator outputs PPM files which can be converted to PNG using ImageMagick
-- The library uses 4-bit packed pixels for efficient memory usage (2 pixels per byte)
+- **Display Refresh Time**: Hardware refresh can take 15-32 seconds depending on content
+- **Power Consumption**: Display only draws power during refresh
+- **Image Formats**: Emulator outputs PPM files, convert to PNG with ImageMagick:
+  ```bash
+  convert display.ppm display.png
+  ```
+- **Memory Efficiency**: Uses packed 4-bit pixels to minimize memory usage
+- **First Success**: Tagged as `first_success` in git repository
+
+## License
+
+Based on Pimoroni's Inky library for Python. See original repository for license details.
