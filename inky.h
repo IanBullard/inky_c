@@ -43,7 +43,7 @@ void inky_set_border(inky_t *display, uint8_t color);
 // Update the physical display with buffer contents
 void inky_update(inky_t *display);
 
-// Save current display buffer as PPM image (emulator only)
+// Save current display buffer as PPM image (works with both emulator and hardware)
 // Returns 0 on success, -1 on error
 int inky_emulator_save_ppm(inky_t *display, const char *filename);
 

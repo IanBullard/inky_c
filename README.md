@@ -86,8 +86,8 @@ void inky_update(inky_t *display);                                         // Up
 uint16_t inky_get_width(inky_t *display);   // Get display width
 uint16_t inky_get_height(inky_t *display);  // Get display height
 
-// Emulator-specific
-int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as image
+// Image output (works with both emulator and hardware)
+int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as PPM image
 ```
 
 ## Hardware Requirements
@@ -122,8 +122,9 @@ int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as i
 inky_c/
 ├── inky.h                  # Public API header
 ├── inky_internal.h         # Internal implementation header  
-├── inky_emulator.c         # Emulator implementation (all platforms)
-├── inky_hardware_linux.c   # Hardware implementation (Raspberry Pi)
+├── inky_common.c           # Shared implementation (buffer operations, etc.)
+├── inky_emulator.c         # Emulator-specific code (PPM output, stubs)
+├── inky_hardware.c         # Hardware-specific code (SPI, GPIO, UC8159)
 ├── test_clear.c            # Example: Clear display test program
 ├── Makefile                # Build configuration
 ├── run_on_pi.sh           # Helper script for Raspberry Pi
@@ -132,11 +133,18 @@ inky_c/
 
 ### API Design
 
-The library uses an **opaque pointer design** to hide implementation details:
+The library uses a **clean separation of concerns**:
 
-- **`inky.h`**: Contains only the public API that users should access
-- **`inky_internal.h`**: Contains implementation details (UC8159 commands, GPIO pins, internal structure)
-- **Backends**: Both emulator and hardware implementations include the internal header
+- **`inky.h`**: Clean public API with opaque pointers - only what users need
+- **`inky_internal.h`**: Internal structure and function declarations
+- **`inky_common.c`**: Shared code (buffer operations, pixel manipulation, common init/destroy)
+- **`inky_emulator.c`**: Emulator-specific code (PPM generation, hardware stubs)
+- **`inky_hardware.c`**: Hardware-specific code (SPI/GPIO communication, UC8159 commands)
+
+This design ensures:
+- **Maximum code reuse** between emulator and hardware
+- **Clean public API** with no implementation details exposed
+- **Easy testing** - emulator behavior closely matches hardware
 
 ## Implementation Details
 

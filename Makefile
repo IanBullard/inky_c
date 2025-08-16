@@ -11,11 +11,11 @@ $(shell mkdir -p $(BUILD_DIR) $(BIN_DIR))
 
 # Emulator build (works on any platform)
 EMULATOR_TARGET = $(BIN_DIR)/test_clear_emulator
-EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_emulator.o
+EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o
 
 # Hardware build (Linux only)
 HARDWARE_TARGET = $(BIN_DIR)/test_clear_hardware
-HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_hardware.o
+HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o
 
 # Default target - build emulator version
 all: emulator
@@ -27,7 +27,10 @@ $(EMULATOR_TARGET): $(EMULATOR_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Built emulator version: $@"
 
-$(BUILD_DIR)/inky_emulator.o: inky_emulator.c inky.h
+$(BUILD_DIR)/inky_emulator.o: inky_emulator.c inky_internal.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/inky_common.o: inky_common.c inky_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Hardware version (Raspberry Pi only)
@@ -45,8 +48,8 @@ $(HARDWARE_TARGET): $(HARDWARE_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Built hardware version: $@"
 
-$(BUILD_DIR)/inky_hardware.o: inky_hardware_linux.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ inky_hardware_linux.c
+$(BUILD_DIR)/inky_hardware.o: inky_hardware.c inky_internal.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Common object files
 $(BUILD_DIR)/test_clear.o: test_clear.c inky.h

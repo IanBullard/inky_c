@@ -66,11 +66,17 @@ struct inky_display {
     bool v_flip;
 };
 
+// Common functions (shared between emulator and hardware)
+inky_t* inky_init_common(bool emulator);
+void inky_destroy_common(inky_t *display);
+
 // Hardware-specific internal functions
+bool inky_hw_init_gpio(inky_t *display);
 void inky_hw_setup(inky_t *display);
 void inky_hw_reset(inky_t *display);
 void inky_hw_send_command(inky_t *display, uint8_t command);
 void inky_hw_send_data(inky_t *display, const uint8_t *data, size_t len);
 void inky_hw_busy_wait(inky_t *display);
+void inky_hw_update(inky_t *display);
 
 #endif // INKY_INTERNAL_H

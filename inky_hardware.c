@@ -1,5 +1,5 @@
 /* 
- * Hardware implementation for Inky display on Linux (Raspberry Pi)
+ * Hardware implementation for Inky display on Raspberry Pi
  * This file should be compiled on Linux systems with proper SPI/GPIO support
  */
 
@@ -12,8 +12,35 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <time.h>
+
+#ifdef __linux__
 #include <linux/spi/spidev.h>
 #include <linux/gpio.h>
+#else
+// Stub definitions for non-Linux platforms
+#define GPIOHANDLE_REQUEST_OUTPUT 0
+#define GPIOHANDLE_REQUEST_INPUT 0
+#define GPIO_GET_LINEHANDLE_IOCTL 0
+#define GPIOHANDLE_SET_LINE_VALUES_IOCTL 0
+#define GPIOHANDLE_GET_LINE_VALUES_IOCTL 0
+#define SPI_IOC_WR_MODE 0
+#define SPI_IOC_WR_BITS_PER_WORD 0
+#define SPI_IOC_WR_MAX_SPEED_HZ 0
+#define SPI_NO_CS 0
+
+struct gpiohandle_request {
+    uint32_t lineoffsets[64];
+    uint32_t flags;
+    uint8_t default_values[64];
+    char consumer_label[32];
+    uint32_t lines;
+    int fd;
+};
+
+struct gpiohandle_data {
+    uint8_t values[64];
+};
+#endif
 
 #define SPI_DEVICE "/dev/spidev0.0"
 #define GPIO_DEVICE "/dev/gpiochip0"
@@ -27,36 +54,17 @@ inky_t* inky_init(bool emulator) {
         return NULL;
     }
     
-    inky_t *display = calloc(1, sizeof(inky_t));
+    // Use common initialization
+    inky_t *display = inky_init_common(false);
     if (!display) {
         return NULL;
     }
-    
-    display->width = INKY_WIDTH;
-    display->height = INKY_HEIGHT;
-    display->is_emulator = false;
-    display->border_color = INKY_WHITE;
-    display->h_flip = false;
-    display->v_flip = false;
-    
-    // Calculate buffer size - 4 bits per pixel, packed
-    display->buffer_size = (display->width * display->height + 1) / 2;
-    display->buffer = calloc(display->buffer_size, 1);
-    
-    if (!display->buffer) {
-        free(display);
-        return NULL;
-    }
-    
-    // Initialize to white
-    memset(display->buffer, 0x11, display->buffer_size);
     
     // Initialize SPI
     display->spi_fd = open(SPI_DEVICE, O_RDWR);
     if (display->spi_fd < 0) {
         perror("Failed to open SPI device");
-        free(display->buffer);
-        free(display);
+        inky_destroy_common(display);
         return NULL;
     }
     
@@ -70,19 +78,43 @@ inky_t* inky_init(bool emulator) {
         ioctl(display->spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) {
         perror("Failed to configure SPI");
         close(display->spi_fd);
-        free(display->buffer);
-        free(display);
+        inky_destroy_common(display);
         return NULL;
     }
     
     // Initialize GPIO
+    if (!inky_hw_init_gpio(display)) {
+        close(display->spi_fd);
+        inky_destroy_common(display);
+        return NULL;
+    }
+    
+    // Setup the display
+    inky_hw_setup(display);
+    
+    return display;
+}
+
+void inky_destroy(inky_t *display) {
+    if (!display) return;
+    
+    if (!display->is_emulator) {
+        if (display->reset_line > 0) close(display->reset_line);
+        if (display->dc_line > 0) close(display->dc_line);
+        if (display->cs_line > 0) close(display->cs_line);
+        if (display->busy_line > 0) close(display->busy_line);
+        if (display->gpio_chip_fd > 0) close(display->gpio_chip_fd);
+        if (display->spi_fd > 0) close(display->spi_fd);
+    }
+    
+    inky_destroy_common(display);
+}
+
+bool inky_hw_init_gpio(inky_t *display) {
     display->gpio_chip_fd = open(GPIO_DEVICE, O_RDONLY);
     if (display->gpio_chip_fd < 0) {
         perror("Failed to open GPIO chip");
-        close(display->spi_fd);
-        free(display->buffer);
-        free(display);
-        return NULL;
+        return false;
     }
     
     // Request RESET GPIO line
@@ -95,11 +127,7 @@ inky_t* inky_init(bool emulator) {
     
     if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &reset_req) < 0) {
         perror("Failed to request RESET GPIO line");
-        close(display->gpio_chip_fd);
-        close(display->spi_fd);
-        free(display->buffer);
-        free(display);
-        return NULL;
+        return false;
     }
     display->reset_line = reset_req.fd;
     
@@ -114,11 +142,7 @@ inky_t* inky_init(bool emulator) {
     if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &dc_req) < 0) {
         perror("Failed to request DC GPIO line");
         close(display->reset_line);
-        close(display->gpio_chip_fd);
-        close(display->spi_fd);
-        free(display->buffer);
-        free(display);
-        return NULL;
+        return false;
     }
     display->dc_line = dc_req.fd;
     
@@ -134,11 +158,7 @@ inky_t* inky_init(bool emulator) {
         perror("Failed to request CS GPIO line");
         close(display->dc_line);
         close(display->reset_line);
-        close(display->gpio_chip_fd);
-        close(display->spi_fd);
-        free(display->buffer);
-        free(display);
-        return NULL;
+        return false;
     }
     display->cs_line = cs_req.fd;
     
@@ -151,84 +171,14 @@ inky_t* inky_init(bool emulator) {
     
     if (ioctl(display->gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &busy_req) < 0) {
         perror("Failed to request BUSY GPIO line");
+        close(display->cs_line);
+        close(display->dc_line);
         close(display->reset_line);
-        close(display->gpio_chip_fd);
-        close(display->spi_fd);
-        free(display->buffer);
-        free(display);
-        return NULL;
+        return false;
     }
-    
     display->busy_line = busy_req.fd;
     
-    // Setup the display
-    inky_hw_setup(display);
-    
-    return display;
-}
-
-void inky_destroy(inky_t *display) {
-    if (!display) return;
-    
-    if (display->buffer) {
-        free(display->buffer);
-    }
-    
-    if (!display->is_emulator) {
-        if (display->reset_line > 0) close(display->reset_line);
-        if (display->dc_line > 0) close(display->dc_line);
-        if (display->cs_line > 0) close(display->cs_line);
-        if (display->busy_line > 0) close(display->busy_line);
-        if (display->gpio_chip_fd > 0) close(display->gpio_chip_fd);
-        if (display->spi_fd > 0) close(display->spi_fd);
-    }
-    
-    free(display);
-}
-
-void inky_clear(inky_t *display, uint8_t color) {
-    if (!display || !display->buffer) return;
-    
-    // Pack two pixels of the same color into one byte
-    uint8_t packed_color = ((color & 0x0F) << 4) | (color & 0x0F);
-    memset(display->buffer, packed_color, display->buffer_size);
-}
-
-void inky_set_pixel(inky_t *display, uint16_t x, uint16_t y, uint8_t color) {
-    if (!display || !display->buffer) return;
-    if (x >= display->width || y >= display->height) return;
-    
-    size_t pixel_index = y * display->width + x;
-    size_t byte_index = pixel_index / 2;
-    
-    if (pixel_index & 1) {
-        // Odd pixel - low nibble
-        display->buffer[byte_index] = (display->buffer[byte_index] & 0xF0) | (color & 0x0F);
-    } else {
-        // Even pixel - high nibble
-        display->buffer[byte_index] = (display->buffer[byte_index] & 0x0F) | ((color & 0x0F) << 4);
-    }
-}
-
-uint8_t inky_get_pixel(inky_t *display, uint16_t x, uint16_t y) {
-    if (!display || !display->buffer) return 0;
-    if (x >= display->width || y >= display->height) return 0;
-    
-    size_t pixel_index = y * display->width + x;
-    size_t byte_index = pixel_index / 2;
-    
-    if (pixel_index & 1) {
-        // Odd pixel - low nibble
-        return display->buffer[byte_index] & 0x0F;
-    } else {
-        // Even pixel - high nibble
-        return (display->buffer[byte_index] >> 4) & 0x0F;
-    }
-}
-
-void inky_set_border(inky_t *display, uint8_t color) {
-    if (!display) return;
-    display->border_color = color & 0x07;
+    return true;
 }
 
 static void gpio_set_value(int fd, int value) {
@@ -384,13 +334,8 @@ void inky_hw_setup(inky_t *display) {
     inky_hw_send_data(display, &pfs_data, 1);
 }
 
-void inky_update(inky_t *display) {
-    if (!display) return;
-    
-    if (display->is_emulator) {
-        // Handled in emulator
-        return;
-    }
+void inky_hw_update(inky_t *display) {
+    if (!display || display->is_emulator) return;
     
     // Send display data
     inky_hw_send_command(display, UC8159_DTM1);
@@ -409,20 +354,3 @@ void inky_update(inky_t *display) {
     usleep(200000);  // 200ms
 }
 
-uint16_t inky_get_width(inky_t *display) {
-    if (!display) return 0;
-    return display->width;
-}
-
-uint16_t inky_get_height(inky_t *display) {
-    if (!display) return 0;
-    return display->height;
-}
-
-// Stub for emulator function
-int inky_emulator_save_ppm(inky_t *display, const char *filename) {
-    (void)display;
-    (void)filename;
-    fprintf(stderr, "Cannot save PPM from hardware display\n");
-    return -1;
-}
