@@ -15,7 +15,7 @@ EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_emulator.o
 
 # Hardware build (Linux only)
 HARDWARE_TARGET = $(BIN_DIR)/test_clear_hardware
-HARDWARE_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_hardware.o
+HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_hardware.o
 
 # Default target - build emulator version
 all: emulator
@@ -51,6 +51,10 @@ $(BUILD_DIR)/inky_hardware.o: inky_hardware_linux.c inky.h
 # Common object files
 $(BUILD_DIR)/test_clear.o: test_clear.c inky.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Hardware-specific test_clear build with HARDWARE_BUILD defined
+$(BUILD_DIR)/test_clear_hw.o: test_clear.c inky.h
+	$(CC) $(CFLAGS) -DHARDWARE_BUILD -c -o $@ test_clear.c
 
 # Run emulator test
 test: $(EMULATOR_TARGET)

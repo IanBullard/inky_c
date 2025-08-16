@@ -23,7 +23,7 @@
 
 inky_t* inky_init(bool emulator) {
     if (emulator) {
-        // Emulator initialization is in inky_emulator.c
+        fprintf(stderr, "Error: This is the hardware build. Use the emulator build for emulation.\n");
         return NULL;
     }
     

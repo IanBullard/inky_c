@@ -7,8 +7,13 @@
 void print_usage(const char *prog_name) {
     printf("Usage: %s [--emulator|--hardware] [--color COLOR]\n", prog_name);
     printf("Options:\n");
+#ifdef HARDWARE_BUILD
+    printf("  --emulator    Use emulator mode\n");
+    printf("  --hardware    Use hardware mode (default)\n");
+#else
     printf("  --emulator    Use emulator mode (default)\n");
     printf("  --hardware    Use hardware mode\n");
+#endif
     printf("  --color COLOR Set clear color (0-7):\n");
     printf("                0=BLACK, 1=WHITE, 2=GREEN, 3=BLUE\n");
     printf("                4=RED, 5=YELLOW, 6=ORANGE, 7=CLEAN\n");
@@ -17,7 +22,12 @@ void print_usage(const char *prog_name) {
 }
 
 int main(int argc, char *argv[]) {
-    bool use_emulator = true;
+    // Default behavior based on build type
+#ifdef HARDWARE_BUILD
+    bool use_emulator = false;  // Hardware build defaults to hardware mode
+#else
+    bool use_emulator = true;   // Emulator build defaults to emulator mode
+#endif
     uint8_t clear_color = INKY_WHITE;
     const char *output_file = "display.ppm";
     
