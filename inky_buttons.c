@@ -58,14 +58,14 @@ static uint64_t get_time_ms(void) {
     return (uint64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-// Read GPIO value
+// Read GPIO value - returns true when button is pressed
 static bool read_button_gpio(int fd) {
 #ifdef __linux__
     struct gpiohandle_data data;
     if (ioctl(fd, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &data) < 0) {
-        return true;  // Default to not pressed on error
+        return false;  // Default to not pressed on error
     }
-    return data.values[0] == 0;  // Button pressed = low (pull-up)
+    return data.values[0] == 0;  // Button pressed = GPIO low = true
 #else
     (void)fd;
     return false;  // Not supported on non-Linux
@@ -180,7 +180,7 @@ void inky_button_poll(void) {
         
         // Apply debouncing
         if ((current_time - btn->last_change_time) >= DEBOUNCE_MS) {
-            bool new_pressed = !current_state;  // Inverted because of pull-up
+            bool new_pressed = current_state;  // With pull-up bias, pressed = GPIO low = false, so use direct state
             
             // Detect button press (transition from not pressed to pressed)
             if (new_pressed && !btn->is_pressed) {
