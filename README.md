@@ -41,6 +41,14 @@ make buttons
 
 This builds a demonstration program that shows how to use the button functionality.
 
+### Emulated Button Test Program (All Platforms)
+
+```bash
+make emulator-buttons
+```
+
+This builds a demonstration program that shows how to use emulated button presses for testing.
+
 ## Usage
 
 ### Clear Display Test
@@ -54,6 +62,9 @@ This builds a demonstration program that shows how to use the button functionali
 
 # Button test (Raspberry Pi only) - interactive button demo
 sudo ./bin/test_buttons
+
+# Emulated button test (all platforms) - simulated button demo
+./bin/test_emulator_buttons
 ```
 
 ### Color Values
@@ -117,6 +128,37 @@ int main() {
 }
 ```
 
+### Emulated Button Usage
+
+For testing applications without hardware, you can use emulated button presses:
+
+```c
+#include "inky.h"
+
+void button_callback(int button, void *user_data) {
+    printf("Button %d pressed!\n", button);
+}
+
+int main() {
+    // Initialize button support (automatically uses emulator mode on non-Linux)
+    if (inky_button_init() < 0) {
+        fprintf(stderr, "Failed to initialize buttons\n");
+        return 1;
+    }
+    
+    // Set callback for button presses
+    inky_button_set_callback(button_callback, NULL);
+    
+    // Simulate button presses programmatically
+    inky_button_emulate_press(INKY_BUTTON_A);  // Simulates button A press
+    inky_button_emulate_press(INKY_BUTTON_B);  // Simulates button B press
+    
+    // Clean up
+    inky_button_cleanup();
+    return 0;
+}
+```
+
 ## Public API
 
 The library provides a clean, opaque API that hides implementation details:
@@ -150,6 +192,7 @@ void inky_button_set_callback(inky_button_callback_t callback, void *user_data);
 void inky_button_poll(void);                                          // Poll for events
 bool inky_button_is_pressed(int button);                             // Check button state
 void inky_button_cleanup(void);                                       // Clean up buttons
+void inky_button_emulate_press(int button);                               // Emulate button press (emulator only)
 ```
 
 ## Hardware Requirements

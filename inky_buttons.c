@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #else
+#include <sys/ioctl.h>  // For ioctl stub definitions
 // Stub definitions for non-Linux platforms
 #define GPIOHANDLE_REQUEST_INPUT 0
 #define GPIOHANDLE_REQUEST_BIAS_PULL_UP 0
@@ -45,6 +46,7 @@ typedef struct {
 // Global button state
 static struct {
     bool initialized;
+    bool emulator_mode;
     int gpio_chip_fd;
     button_state_t buttons[4];
     inky_button_callback_t callback;
@@ -73,14 +75,16 @@ static bool read_button_gpio(int fd) {
 }
 
 int inky_button_init(void) {
-#ifndef __linux__
-    // Buttons not supported on non-Linux platforms
-    return -1;
-#endif
-    
     if (button_ctx.initialized) {
         return 0;  // Already initialized
     }
+    
+#ifndef __linux__
+    // Non-Linux platforms use emulator mode
+    button_ctx.emulator_mode = true;
+    printf("Button support initialized (emulator mode)\n");
+    goto init_common;
+#endif
     
     // Button GPIO pins
     int button_pins[4] = {
@@ -97,11 +101,12 @@ int inky_button_init(void) {
         return -1;
     }
     
+    button_ctx.emulator_mode = false;  // Hardware mode
+    
     // Initialize each button
     for (int i = 0; i < 4; i++) {
         button_ctx.buttons[i].gpio_pin = button_pins[i];
         
-#ifdef __linux__
         // Request GPIO line for input with pull-up
         struct gpiohandle_request req;
         req.lineoffsets[0] = button_pins[i];
@@ -121,7 +126,6 @@ int inky_button_init(void) {
         }
         
         button_ctx.buttons[i].gpio_fd = req.fd;
-#endif
         
         // Initialize state by reading actual GPIO value
         button_ctx.buttons[i].last_state = read_button_gpio(button_ctx.buttons[i].gpio_fd);
@@ -132,12 +136,27 @@ int inky_button_init(void) {
                'A' + i, button_pins[i], button_ctx.buttons[i].last_state);
     }
     
+    printf("Button support initialized (A=GPIO%d, B=GPIO%d, C=GPIO%d, D=GPIO%d)\n",
+           INKY_BUTTON_A_PIN, INKY_BUTTON_B_PIN, INKY_BUTTON_C_PIN, INKY_BUTTON_D_PIN);
+    
+    goto init_common;
+
+init_common:
+    // Common initialization for both hardware and emulator
+    if (button_ctx.emulator_mode) {
+        // Initialize emulator button states
+        for (int i = 0; i < 4; i++) {
+            button_ctx.buttons[i].gpio_pin = -1;  // No GPIO
+            button_ctx.buttons[i].gpio_fd = -1;   // No file descriptor
+            button_ctx.buttons[i].last_state = false;  // Not pressed
+            button_ctx.buttons[i].last_change_time = get_time_ms();
+            button_ctx.buttons[i].is_pressed = false;
+        }
+    }
+    
     button_ctx.initialized = true;
     button_ctx.callback = NULL;
     button_ctx.user_data = NULL;
-    
-    printf("Button support initialized (A=GPIO%d, B=GPIO%d, C=GPIO%d, D=GPIO%d)\n",
-           INKY_BUTTON_A_PIN, INKY_BUTTON_B_PIN, INKY_BUTTON_C_PIN, INKY_BUTTON_D_PIN);
     
     return 0;
 }
@@ -151,6 +170,11 @@ void inky_button_set_callback(inky_button_callback_t callback, void *user_data) 
 
 void inky_button_poll(void) {
     if (!button_ctx.initialized) return;
+    
+    // Emulator mode doesn't need to poll - emulated presses are handled directly
+    if (button_ctx.emulator_mode) {
+        return;
+    }
     
     uint64_t current_time = get_time_ms();
     static uint64_t last_debug_time = 0;
@@ -212,23 +236,59 @@ bool inky_button_is_pressed(int button) {
 void inky_button_cleanup(void) {
     if (!button_ctx.initialized) return;
     
-    // Close all button GPIO file descriptors
-    for (int i = 0; i < 4; i++) {
-        if (button_ctx.buttons[i].gpio_fd > 0) {
-            close(button_ctx.buttons[i].gpio_fd);
-            button_ctx.buttons[i].gpio_fd = 0;
+    if (!button_ctx.emulator_mode) {
+        // Close all button GPIO file descriptors (hardware mode only)
+        for (int i = 0; i < 4; i++) {
+            if (button_ctx.buttons[i].gpio_fd > 0) {
+                close(button_ctx.buttons[i].gpio_fd);
+                button_ctx.buttons[i].gpio_fd = 0;
+            }
+        }
+        
+        // Close GPIO chip
+        if (button_ctx.gpio_chip_fd > 0) {
+            close(button_ctx.gpio_chip_fd);
+            button_ctx.gpio_chip_fd = 0;
         }
     }
     
-    // Close GPIO chip
-    if (button_ctx.gpio_chip_fd > 0) {
-        close(button_ctx.gpio_chip_fd);
-        button_ctx.gpio_chip_fd = 0;
-    }
-    
     button_ctx.initialized = false;
+    button_ctx.emulator_mode = false;
     button_ctx.callback = NULL;
     button_ctx.user_data = NULL;
     
     printf("Button support cleaned up\n");
+}
+
+void inky_button_emulate_press(int button) {
+    if (!button_ctx.initialized) {
+        printf("WARNING: Buttons not initialized - call inky_button_init() first\n");
+        return;
+    }
+    
+    if (button < 0 || button >= 4) {
+        printf("WARNING: Invalid button %d (must be 0-3)\n", button);
+        return;
+    }
+    
+    if (!button_ctx.emulator_mode) {
+        printf("WARNING: inky_button_emulate_press() only works in emulator mode\n");
+        return;
+    }
+    
+    const char *button_names[] = {"A", "B", "C", "D"};
+    printf("Emulating button %s press\n", button_names[button]);
+    
+    // Trigger the callback immediately
+    if (button_ctx.callback) {
+        button_ctx.callback(button, button_ctx.user_data);
+    }
+    
+    // Update the button state for is_pressed() queries
+    button_ctx.buttons[button].is_pressed = true;
+    button_ctx.buttons[button].last_change_time = get_time_ms();
+    
+    // Note: In emulator mode, we don't automatically release the button
+    // The application can call inky_button_emulate_press again or 
+    // check inky_button_is_pressed() to manage state
 }

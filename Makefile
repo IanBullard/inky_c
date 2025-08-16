@@ -21,6 +21,10 @@ HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_
 BUTTON_TARGET = $(BIN_DIR)/test_buttons
 BUTTON_OBJS = $(BUILD_DIR)/test_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
 
+# Emulator button test program (all platforms)
+EMULATOR_BUTTON_TARGET = $(BIN_DIR)/test_emulator_buttons
+EMULATOR_BUTTON_OBJS = $(BUILD_DIR)/test_emulator_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
+
 # Default target - build emulator version
 all: emulator
 
@@ -83,6 +87,16 @@ $(BUTTON_TARGET): $(BUTTON_OBJS)
 $(BUILD_DIR)/test_buttons.o: test_buttons.c inky.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# Emulator button test
+emulator-buttons: $(EMULATOR_BUTTON_TARGET)
+
+$(EMULATOR_BUTTON_TARGET): $(EMULATOR_BUTTON_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	@echo "Built emulator button test: $@"
+
+$(BUILD_DIR)/test_emulator_buttons.o: test_emulator_buttons.c inky.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 # Run emulator test
 test: $(EMULATOR_TARGET)
 	@echo "Running emulator test..."
@@ -119,18 +133,20 @@ clean:
 help:
 	@echo "Inky C Library - Makefile targets:"
 	@echo ""
-	@echo "  make emulator    - Build emulator version (default)"
-	@echo "  make hardware    - Build hardware version (Linux only)"
-	@echo "  make buttons     - Build button test program (Linux only)"
-	@echo "  make test        - Run emulator test with white screen"
-	@echo "  make test-colors - Test all 8 colors"
-	@echo "  make convert-images - Convert PPM files to PNG (requires ImageMagick)"
-	@echo "  make clean       - Remove build artifacts"
-	@echo "  make help        - Show this help"
+	@echo "  make emulator         - Build emulator version (default)"
+	@echo "  make hardware         - Build hardware version (Linux only)"
+	@echo "  make buttons          - Build button test program (Linux only)"
+	@echo "  make emulator-buttons - Build emulator button test (all platforms)"
+	@echo "  make test             - Run emulator test with white screen"
+	@echo "  make test-colors      - Test all 8 colors"
+	@echo "  make convert-images   - Convert PPM files to PNG (requires ImageMagick)"
+	@echo "  make clean            - Remove build artifacts"
+	@echo "  make help             - Show this help"
 	@echo ""
 	@echo "Usage examples:"
-	@echo "  ./bin/test_clear_emulator --color 2  # Clear to green"
-	@echo "  ./bin/test_clear_hardware --color 1  # Clear hardware to white"
-	@echo "  ./bin/test_buttons                   # Test buttons (hardware only)"
+	@echo "  ./bin/test_clear_emulator --color 2     # Clear to green"
+	@echo "  ./bin/test_clear_hardware --color 1     # Clear hardware to white"
+	@echo "  ./bin/test_buttons                      # Test buttons (hardware only)"
+	@echo "  ./bin/test_emulator_buttons             # Test emulated buttons (all platforms)"
 
-.PHONY: all emulator hardware buttons test test-colors convert-images clean help
+.PHONY: all emulator hardware buttons emulator-buttons test test-colors convert-images clean help

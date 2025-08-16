@@ -76,4 +76,8 @@ bool inky_button_is_pressed(int button);
 // Clean up button resources
 void inky_button_cleanup(void);
 
+// Emulator-only function to simulate button presses for testing
+// Only works when buttons are initialized - no-op on hardware
+void inky_button_emulate_press(int button);
+
 #endif // INKY_H
