@@ -12,7 +12,7 @@
 #else
 // Stub definitions for non-Linux platforms
 #define GPIOHANDLE_REQUEST_INPUT 0
-#define GPIOHANDLE_REQUEST_PULL_UP 0
+#define GPIOHANDLE_REQUEST_BIAS_PULL_UP 0
 #define GPIO_GET_LINEHANDLE_IOCTL 0
 #define GPIOHANDLE_GET_LINE_VALUES_IOCTL 0
 
@@ -106,7 +106,7 @@ int inky_button_init(void) {
         struct gpiohandle_request req;
         req.lineoffsets[0] = button_pins[i];
         req.lines = 1;
-        req.flags = GPIOHANDLE_REQUEST_INPUT | GPIOHANDLE_REQUEST_PULL_UP;
+        req.flags = GPIOHANDLE_REQUEST_INPUT | GPIOHANDLE_REQUEST_BIAS_PULL_UP;
         snprintf(req.consumer_label, sizeof(req.consumer_label), "inky_btn_%c", 'A' + i);
         
         if (ioctl(button_ctx.gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &req) < 0) {
