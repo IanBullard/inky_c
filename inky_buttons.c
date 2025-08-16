@@ -12,6 +12,7 @@
 #else
 // Stub definitions for non-Linux platforms
 #define GPIOHANDLE_REQUEST_INPUT 0
+#define GPIOHANDLE_REQUEST_PULL_UP 0
 #define GPIO_GET_LINEHANDLE_IOCTL 0
 #define GPIOHANDLE_GET_LINE_VALUES_IOCTL 0
 
@@ -105,7 +106,7 @@ int inky_button_init(void) {
         struct gpiohandle_request req;
         req.lineoffsets[0] = button_pins[i];
         req.lines = 1;
-        req.flags = GPIOHANDLE_REQUEST_INPUT;
+        req.flags = GPIOHANDLE_REQUEST_INPUT | GPIOHANDLE_REQUEST_PULL_UP;
         snprintf(req.consumer_label, sizeof(req.consumer_label), "inky_btn_%c", 'A' + i);
         
         if (ioctl(button_ctx.gpio_chip_fd, GPIO_GET_LINEHANDLE_IOCTL, &req) < 0) {
@@ -122,10 +123,13 @@ int inky_button_init(void) {
         button_ctx.buttons[i].gpio_fd = req.fd;
 #endif
         
-        // Initialize state
-        button_ctx.buttons[i].last_state = true;  // Not pressed (pull-up)
+        // Initialize state by reading actual GPIO value
+        button_ctx.buttons[i].last_state = read_button_gpio(button_ctx.buttons[i].gpio_fd);
         button_ctx.buttons[i].last_change_time = get_time_ms();
         button_ctx.buttons[i].is_pressed = false;
+        
+        printf("Button %c initialized: GPIO=%d, initial_state=%d\n", 
+               'A' + i, button_pins[i], button_ctx.buttons[i].last_state);
     }
     
     button_ctx.initialized = true;
@@ -149,6 +153,8 @@ void inky_button_poll(void) {
     if (!button_ctx.initialized) return;
     
     uint64_t current_time = get_time_ms();
+    static uint64_t last_debug_time = 0;
+    bool debug_print = (current_time - last_debug_time) > 5000;  // Debug every 5 seconds
     
     for (int i = 0; i < 4; i++) {
         button_state_t *btn = &button_ctx.buttons[i];
@@ -156,8 +162,18 @@ void inky_button_poll(void) {
         // Read current GPIO state
         bool current_state = read_button_gpio(btn->gpio_fd);
         
+        if (debug_print && i == 0) {
+            printf("DEBUG: Button states (raw GPIO): A:%d B:%d C:%d D:%d\n", 
+                   read_button_gpio(button_ctx.buttons[0].gpio_fd),
+                   read_button_gpio(button_ctx.buttons[1].gpio_fd),
+                   read_button_gpio(button_ctx.buttons[2].gpio_fd),
+                   read_button_gpio(button_ctx.buttons[3].gpio_fd));
+            last_debug_time = current_time;
+        }
+        
         // Check if state changed
         if (current_state != btn->last_state) {
+            printf("DEBUG: Button %c state change: %d -> %d\n", 'A' + i, btn->last_state, current_state);
             btn->last_change_time = current_time;
             btn->last_state = current_state;
         }
@@ -169,6 +185,7 @@ void inky_button_poll(void) {
             // Detect button press (transition from not pressed to pressed)
             if (new_pressed && !btn->is_pressed) {
                 btn->is_pressed = true;
+                printf("DEBUG: Button %c PRESS detected (GPIO:%d, pressed:%d)\n", 'A' + i, current_state, new_pressed);
                 
                 // Call callback if registered
                 if (button_ctx.callback) {
@@ -178,6 +195,7 @@ void inky_button_poll(void) {
             // Detect button release
             else if (!new_pressed && btn->is_pressed) {
                 btn->is_pressed = false;
+                printf("DEBUG: Button %c RELEASE detected (GPIO:%d, pressed:%d)\n", 'A' + i, current_state, new_pressed);
             }
         }
     }
