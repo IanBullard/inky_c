@@ -11,6 +11,7 @@ A C library implementation for the Inky Impression 5.7" (600x448) 7-color e-ink 
 - **Efficient Memory Usage**: 4-bit packed pixel buffer (2 pixels per byte)
 - **UC8159 Controller**: Full support for the UC8159 e-ink controller
 - **Manual GPIO Control**: Direct control of Reset, DC, CS, and Busy pins
+- **Button Support**: Full support for all 4 hardware buttons (A, B, C, D)
 - **PPM Image Output**: Emulator saves display state as PPM images for testing
 
 ## Building
@@ -32,6 +33,14 @@ make hardware
 This builds the hardware version that communicates with the actual Inky display via SPI/GPIO.
 **Note:** This can only be built on Raspberry Pi with Linux ARM.
 
+### Button Test Program (Raspberry Pi Only)
+
+```bash
+make buttons
+```
+
+This builds a demonstration program that shows how to use the button functionality.
+
 ## Usage
 
 ### Clear Display Test
@@ -42,6 +51,9 @@ This builds the hardware version that communicates with the actual Inky display 
 
 # Hardware (Raspberry Pi only) - clear actual display to white
 ./bin/test_clear_hardware --color 1
+
+# Button test (Raspberry Pi only) - interactive button demo
+sudo ./bin/test_buttons
 ```
 
 ### Color Values
@@ -62,6 +74,48 @@ make test-colors
 ```
 
 This generates PPM files for all 8 colors.
+
+### Button Usage
+
+The library includes full support for the 4 hardware buttons:
+
+```c
+#include "inky.h"
+
+// Button callback function
+void on_button_press(int button, void *user_data) {
+    printf("Button %d pressed!\n", button);
+    // button values: INKY_BUTTON_A (0), INKY_BUTTON_B (1), 
+    //                INKY_BUTTON_C (2), INKY_BUTTON_D (3)
+}
+
+int main() {
+    // Initialize button support
+    if (inky_button_init() < 0) {
+        fprintf(stderr, "Failed to initialize buttons\n");
+        return 1;
+    }
+    
+    // Set callback for button presses
+    inky_button_set_callback(on_button_press, NULL);
+    
+    // Main event loop
+    while (running) {
+        inky_button_poll();  // Check for button events
+        
+        // Check individual button states
+        if (inky_button_is_pressed(INKY_BUTTON_A)) {
+            printf("Button A is currently held down\n");
+        }
+        
+        usleep(10000);  // 10ms delay
+    }
+    
+    // Clean up
+    inky_button_cleanup();
+    return 0;
+}
+```
 
 ## Public API
 
@@ -88,6 +142,14 @@ uint16_t inky_get_height(inky_t *display);  // Get display height
 
 // Image output (works with both emulator and hardware)
 int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as PPM image
+
+// Button support (hardware only - no-op on emulator)
+typedef void (*inky_button_callback_t)(int button, void *user_data);  // Button callback type
+int inky_button_init(void);                                           // Initialize buttons
+void inky_button_set_callback(inky_button_callback_t callback, void *user_data);  // Set callback
+void inky_button_poll(void);                                          // Poll for events
+bool inky_button_is_pressed(int button);                             // Check button state
+void inky_button_cleanup(void);                                       // Clean up buttons
 ```
 
 ## Hardware Requirements
@@ -107,6 +169,10 @@ int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as P
    - **Busy**: GPIO 17 (Physical Pin 11)
    - **DC**: GPIO 22 (Physical Pin 15)
    - **CS**: GPIO 8/CE0 (Physical Pin 24) - Manually controlled
+   - **Button A**: GPIO 5 (Physical Pin 29)
+   - **Button B**: GPIO 6 (Physical Pin 31)
+   - **Button C**: GPIO 16 (Physical Pin 36)
+   - **Button D**: GPIO 24 (Physical Pin 18)
 
 3. **Required Permissions**:
    - Run with `sudo` for GPIO/SPI access
@@ -125,7 +191,9 @@ inky_c/
 ├── inky_common.c           # Shared implementation (buffer operations, etc.)
 ├── inky_emulator.c         # Emulator-specific code (PPM output, stubs)
 ├── inky_hardware.c         # Hardware-specific code (SPI, GPIO, UC8159)
+├── inky_buttons.c          # Button support (GPIO input, callbacks)
 ├── test_clear.c            # Example: Clear display test program
+├── test_buttons.c          # Example: Interactive button demonstration
 ├── Makefile                # Build configuration
 ├── run_on_pi.sh           # Helper script for Raspberry Pi
 └── README.md              # This documentation
@@ -140,6 +208,7 @@ The library uses a **clean separation of concerns**:
 - **`inky_common.c`**: Shared code (buffer operations, pixel manipulation, common init/destroy)
 - **`inky_emulator.c`**: Emulator-specific code (PPM generation, hardware stubs)
 - **`inky_hardware.c`**: Hardware-specific code (SPI/GPIO communication, UC8159 commands)
+- **`inky_buttons.c`**: Button support (GPIO input handling, event callbacks)
 
 This design ensures:
 - **Maximum code reuse** between emulator and hardware

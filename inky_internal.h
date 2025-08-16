@@ -39,6 +39,12 @@
 #define INKY_DC_PIN    22  // BCM22 (Physical Pin 15)
 #define INKY_CS_PIN    8   // BCM8/CE0 (Physical Pin 24)
 
+// Button GPIO Pin definitions (Raspberry Pi BCM numbering)
+#define INKY_BUTTON_A_PIN 5   // BCM5 (Physical Pin 29)
+#define INKY_BUTTON_B_PIN 6   // BCM6 (Physical Pin 31)
+#define INKY_BUTTON_C_PIN 16  // BCM16 (Physical Pin 36)
+#define INKY_BUTTON_D_PIN 24  // BCM24 (Physical Pin 18)
+
 // Internal display structure (implementation exposed to backends)
 struct inky_display {
     // Display properties

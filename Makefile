@@ -11,11 +11,15 @@ $(shell mkdir -p $(BUILD_DIR) $(BIN_DIR))
 
 # Emulator build (works on any platform)
 EMULATOR_TARGET = $(BIN_DIR)/test_clear_emulator
-EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o
+EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
 
 # Hardware build (Linux only)
 HARDWARE_TARGET = $(BIN_DIR)/test_clear_hardware
-HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o
+HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
+
+# Button test program (hardware only)
+BUTTON_TARGET = $(BIN_DIR)/test_buttons
+BUTTON_OBJS = $(BUILD_DIR)/test_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
 
 # Default target - build emulator version
 all: emulator
@@ -31,6 +35,9 @@ $(BUILD_DIR)/inky_emulator.o: inky_emulator.c inky_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(BUILD_DIR)/inky_common.o: inky_common.c inky_internal.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/inky_buttons.o: inky_buttons.c inky_internal.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Hardware version (Raspberry Pi only)
@@ -58,6 +65,23 @@ $(BUILD_DIR)/test_clear.o: test_clear.c inky.h
 # Hardware-specific test_clear build with HARDWARE_BUILD defined
 $(BUILD_DIR)/test_clear_hw.o: test_clear.c inky.h
 	$(CC) $(CFLAGS) -DHARDWARE_BUILD -c -o $@ test_clear.c
+
+# Button test program
+buttons: 
+	@if [ "$$(uname)" != "Linux" ]; then \
+		echo "Error: Button test can only be built on Raspberry Pi (Linux ARM)"; \
+		echo "Buttons require Linux GPIO interfaces."; \
+		exit 1; \
+	fi
+	@echo "Building button test for Raspberry Pi..."
+	@$(MAKE) $(BUTTON_TARGET)
+
+$(BUTTON_TARGET): $(BUTTON_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	@echo "Built button test: $@"
+
+$(BUILD_DIR)/test_buttons.o: test_buttons.c inky.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Run emulator test
 test: $(EMULATOR_TARGET)
@@ -97,6 +121,7 @@ help:
 	@echo ""
 	@echo "  make emulator    - Build emulator version (default)"
 	@echo "  make hardware    - Build hardware version (Linux only)"
+	@echo "  make buttons     - Build button test program (Linux only)"
 	@echo "  make test        - Run emulator test with white screen"
 	@echo "  make test-colors - Test all 8 colors"
 	@echo "  make convert-images - Convert PPM files to PNG (requires ImageMagick)"
@@ -106,5 +131,6 @@ help:
 	@echo "Usage examples:"
 	@echo "  ./bin/test_clear_emulator --color 2  # Clear to green"
 	@echo "  ./bin/test_clear_hardware --color 1  # Clear hardware to white"
+	@echo "  ./bin/test_buttons                   # Test buttons (hardware only)"
 
-.PHONY: all emulator hardware test test-colors convert-images clean help
+.PHONY: all emulator hardware buttons test test-colors convert-images clean help

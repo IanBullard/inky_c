@@ -19,6 +19,12 @@
 #define INKY_ORANGE 6
 #define INKY_CLEAN  7
 
+// Button definitions
+#define INKY_BUTTON_A 0
+#define INKY_BUTTON_B 1
+#define INKY_BUTTON_C 2
+#define INKY_BUTTON_D 3
+
 // Opaque display context - implementation details hidden
 typedef struct inky_display inky_t;
 
@@ -50,5 +56,24 @@ int inky_emulator_save_ppm(inky_t *display, const char *filename);
 // Get display dimensions
 uint16_t inky_get_width(inky_t *display);
 uint16_t inky_get_height(inky_t *display);
+
+// Button support (hardware only - no-op on emulator)
+// Callback function type for button presses
+typedef void (*inky_button_callback_t)(int button, void *user_data);
+
+// Initialize button GPIO (call once at startup)
+int inky_button_init(void);
+
+// Set callback function for button presses
+void inky_button_set_callback(inky_button_callback_t callback, void *user_data);
+
+// Poll for button events (call regularly in main loop)
+void inky_button_poll(void);
+
+// Check if a specific button is currently pressed
+bool inky_button_is_pressed(int button);
+
+// Clean up button resources
+void inky_button_cleanup(void);
 
 #endif // INKY_H
