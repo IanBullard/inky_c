@@ -1,4 +1,4 @@
-#include "inky.h"
+#include "inky_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -137,6 +137,16 @@ int inky_emulator_save_ppm(inky_t *display, const char *filename) {
     fclose(fp);
     printf("Saved display image to %s\n", filename);
     return 0;
+}
+
+uint16_t inky_get_width(inky_t *display) {
+    if (!display) return 0;
+    return display->width;
+}
+
+uint16_t inky_get_height(inky_t *display) {
+    if (!display) return 0;
+    return display->height;
 }
 
 // Stub functions for hardware operations (not used in emulator)

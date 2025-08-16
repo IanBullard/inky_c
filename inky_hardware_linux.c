@@ -4,7 +4,7 @@
  */
 
 #define _GNU_SOURCE
-#include "inky.h"
+#include "inky_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -407,6 +407,16 @@ void inky_update(inky_t *display) {
     // Power off
     inky_hw_send_command(display, UC8159_POF);
     usleep(200000);  // 200ms
+}
+
+uint16_t inky_get_width(inky_t *display) {
+    if (!display) return 0;
+    return display->width;
+}
+
+uint16_t inky_get_height(inky_t *display) {
+    if (!display) return 0;
+    return display->height;
 }
 
 // Stub for emulator function

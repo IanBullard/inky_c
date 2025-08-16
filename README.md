@@ -63,26 +63,31 @@ make test-colors
 
 This generates PPM files for all 8 colors.
 
-## API
+## Public API
+
+The library provides a clean, opaque API that hides implementation details:
 
 ```c
-// Initialize display (emulator or hardware)
-inky_t* inky_init(bool emulator);
+// Display context (opaque structure)
+typedef struct inky_display inky_t;
 
-// Clear display to a specific color
-void inky_clear(inky_t *display, uint8_t color);
+// Initialization and cleanup
+inky_t* inky_init(bool emulator);          // Initialize display
+void inky_destroy(inky_t *display);        // Clean up resources
 
-// Set individual pixel
-void inky_set_pixel(inky_t *display, uint16_t x, uint16_t y, uint8_t color);
+// Display operations
+void inky_clear(inky_t *display, uint8_t color);                           // Clear to color
+void inky_set_pixel(inky_t *display, uint16_t x, uint16_t y, uint8_t color); // Set pixel
+uint8_t inky_get_pixel(inky_t *display, uint16_t x, uint16_t y);           // Get pixel
+void inky_set_border(inky_t *display, uint8_t color);                      // Set border color
+void inky_update(inky_t *display);                                         // Update display
 
-// Update display (send buffer to display)
-void inky_update(inky_t *display);
+// Utility functions
+uint16_t inky_get_width(inky_t *display);   // Get display width
+uint16_t inky_get_height(inky_t *display);  // Get display height
 
-// Save emulator output as PPM image
-int inky_emulator_save_ppm(inky_t *display, const char *filename);
-
-// Clean up resources
-void inky_destroy(inky_t *display);
+// Emulator-specific
+int inky_emulator_save_ppm(inky_t *display, const char *filename);  // Save as image
 ```
 
 ## Hardware Requirements
@@ -115,7 +120,8 @@ void inky_destroy(inky_t *display);
 
 ```
 inky_c/
-├── inky.h                  # Main header with API definitions
+├── inky.h                  # Public API header
+├── inky_internal.h         # Internal implementation header  
 ├── inky_emulator.c         # Emulator implementation (all platforms)
 ├── inky_hardware_linux.c   # Hardware implementation (Raspberry Pi)
 ├── test_clear.c            # Example: Clear display test program
@@ -123,6 +129,14 @@ inky_c/
 ├── run_on_pi.sh           # Helper script for Raspberry Pi
 └── README.md              # This documentation
 ```
+
+### API Design
+
+The library uses an **opaque pointer design** to hide implementation details:
+
+- **`inky.h`**: Contains only the public API that users should access
+- **`inky_internal.h`**: Contains implementation details (UC8159 commands, GPIO pins, internal structure)
+- **Backends**: Both emulator and hardware implementations include the internal header
 
 ## Implementation Details
 

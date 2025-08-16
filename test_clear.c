@@ -102,13 +102,16 @@ int main(int argc, char *argv[]) {
         
         // Draw a border around the display
         printf("Drawing border...\n");
-        for (int x = 0; x < display->width; x++) {
+        uint16_t width = inky_get_width(display);
+        uint16_t height = inky_get_height(display);
+        
+        for (int x = 0; x < width; x++) {
             inky_set_pixel(display, x, 0, INKY_BLACK);
-            inky_set_pixel(display, x, display->height - 1, INKY_BLACK);
+            inky_set_pixel(display, x, height - 1, INKY_BLACK);
         }
-        for (int y = 0; y < display->height; y++) {
+        for (int y = 0; y < height; y++) {
             inky_set_pixel(display, 0, y, INKY_BLACK);
-            inky_set_pixel(display, display->width - 1, y, INKY_BLACK);
+            inky_set_pixel(display, width - 1, y, INKY_BLACK);
         }
     }
     
