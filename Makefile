@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=c99
+CFLAGS = -Wall -Wextra -O2 -std=gnu99 -D_GNU_SOURCE
 LDFLAGS = 
 
 # Output directories
@@ -30,15 +30,23 @@ $(EMULATOR_TARGET): $(EMULATOR_OBJS)
 $(BUILD_DIR)/inky_emulator.o: inky_emulator.c inky.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Hardware version (Linux only)
-hardware: $(HARDWARE_TARGET)
+# Hardware version (Raspberry Pi only)
+hardware: 
+	@if [ "$$(uname)" != "Linux" ]; then \
+		echo "Error: Hardware version can only be built on Raspberry Pi (Linux ARM)"; \
+		echo "The hardware implementation requires Raspberry Pi SPI and GPIO interfaces."; \
+		echo "Use 'make emulator' to build the emulator version on all other platforms."; \
+		exit 1; \
+	fi
+	@echo "Building hardware version for Raspberry Pi..."
+	@$(MAKE) $(HARDWARE_TARGET)
 
 $(HARDWARE_TARGET): $(HARDWARE_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	@echo "Built hardware version: $@"
 
-$(BUILD_DIR)/inky_hardware.o: inky_hardware.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(BUILD_DIR)/inky_hardware.o: inky_hardware_linux.c inky.h
+	$(CC) $(CFLAGS) -c -o $@ inky_hardware_linux.c
 
 # Common object files
 $(BUILD_DIR)/test_clear.o: test_clear.c inky.h

@@ -1,3 +1,8 @@
+/* 
+ * Hardware implementation for Inky display on Linux (Raspberry Pi)
+ * This file should be compiled on Linux systems with proper SPI/GPIO support
+ */
+
 #define _GNU_SOURCE
 #include "inky.h"
 #include <stdio.h>
@@ -7,34 +12,8 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <time.h>
-
-#ifdef __linux__
 #include <linux/spi/spidev.h>
 #include <linux/gpio.h>
-#else
-// Stub definitions for non-Linux platforms
-#define GPIOHANDLE_REQUEST_OUTPUT 0
-#define GPIOHANDLE_REQUEST_INPUT 0
-#define GPIO_GET_LINEHANDLE_IOCTL 0
-#define GPIOHANDLE_SET_LINE_VALUES_IOCTL 0
-#define GPIOHANDLE_GET_LINE_VALUES_IOCTL 0
-#define SPI_IOC_WR_MODE 0
-#define SPI_IOC_WR_BITS_PER_WORD 0
-#define SPI_IOC_WR_MAX_SPEED_HZ 0
-
-struct gpiohandle_request {
-    uint32_t lineoffsets[64];
-    uint32_t flags;
-    uint8_t default_values[64];
-    char consumer_label[32];
-    uint32_t lines;
-    int fd;
-};
-
-struct gpiohandle_data {
-    uint8_t values[64];
-};
-#endif
 
 #define SPI_DEVICE "/dev/spidev0.0"
 #define GPIO_DEVICE "/dev/gpiochip0"
