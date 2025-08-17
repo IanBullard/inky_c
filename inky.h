@@ -53,7 +53,15 @@ void inky_update(inky_t *display);
 // x, y: top-left corner of the region to update
 // width, height: dimensions of the region to update
 // Note: Coordinates must be within display bounds
+// Warning: After 5-6 partial updates, ghosting may occur - use inky_update() to clear
 void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
+
+// Check if a full refresh is recommended to prevent ghosting
+// Returns true if partial update count is high or enough time has passed
+bool inky_should_full_refresh(inky_t *display);
+
+// Get the number of partial updates since last full refresh
+int inky_get_partial_count(inky_t *display);
 
 // Save current display buffer as PPM image (works with both emulator and hardware)
 // Returns 0 on success, -1 on error

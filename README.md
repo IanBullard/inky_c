@@ -214,6 +214,42 @@ int main() {
 - Ensure region coordinates are within display bounds
 - Partial updates work best for regions smaller than 25% of the screen
 
+**⚠️ IMPORTANT LIMITATIONS & GHOSTING PREVENTION:**
+
+**Ghosting**: After 5-6 partial updates, "ghost" images from previous content may appear
+- **Cause**: E-ink pigment particles don't fully realign during partial updates
+- **Solution**: Use `inky_should_full_refresh()` to check when full refresh is needed
+
+**Content Limitations - Avoid partial updates for:**
+- Complex graphics (photos, detailed images)  
+- High contrast transitions (black↔white)
+- Large solid color areas changing
+- Gradients or grayscale content
+
+**Content Suitable for partial updates:**
+- Small text changes (digits, labels)
+- Simple geometric shapes
+- Limited color transitions
+- Status indicators, counters, clocks
+
+**Smart Usage Example:**
+```c
+// Check if ghosting prevention is needed
+if (inky_should_full_refresh(display)) {
+    inky_update(display);  // Full refresh clears ghosting
+} else {
+    inky_update_region(display, x, y, w, h);  // Fast partial update
+}
+
+// Monitor partial update count
+printf("Partial updates: %d\n", inky_get_partial_count(display));
+```
+
+**Hardware Timing Constraints:**
+- Wait at least 180 seconds between full refreshes
+- Partial updates can be done more frequently
+- UC8159 controller: ~2-4 seconds for partial, 15-32 seconds for full
+
 ## Public API
 
 The library provides a clean, opaque API that hides implementation details:

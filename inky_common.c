@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 // Initialize common display structure
 inky_t* inky_init_common(bool emulator) {
@@ -28,6 +29,10 @@ inky_t* inky_init_common(bool emulator) {
     
     // Initialize to white
     memset(display->buffer, 0x11, display->buffer_size);  // 0x11 = WHITE|WHITE (two pixels)
+    
+    // Initialize partial update tracking
+    display->partial_update_count = 0;
+    display->last_full_refresh = time(NULL);
     
     return display;
 }
@@ -100,9 +105,14 @@ uint16_t inky_get_height(inky_t *display) {
 void inky_update(inky_t *display) {
     if (!display) return;
     
+    // Reset partial update tracking for full refresh
+    display->partial_update_count = 0;
+    display->last_full_refresh = time(NULL);
+    
     if (display->is_emulator) {
-        printf("Emulator: Display updated (use inky_emulator_save_ppm to save image)\n");
+        printf("Emulator: Full display update (ghosting cleared)\n");
     } else {
+        printf("Full display update (partial count reset, ghosting cleared)\n");
         // Hardware update is implemented in hardware backend
         inky_hw_update(display);
     }
@@ -118,10 +128,22 @@ void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width,
         return;
     }
     
+    // Increment partial update counter
+    display->partial_update_count++;
+    
+    // Warn about potential ghosting
+    if (display->partial_update_count >= 5) {
+        printf("WARNING: %d partial updates since last full refresh - ghosting may occur!\n", 
+               display->partial_update_count);
+        printf("Consider calling inky_update() for full refresh to clear ghosting.\n");
+    }
+    
     if (display->is_emulator) {
-        printf("Emulator: Partial update region (%d,%d) %dx%d (use inky_emulator_save_ppm to save image)\n", 
-               x, y, width, height);
+        printf("Emulator: Partial update #%d region (%d,%d) %dx%d\n", 
+               display->partial_update_count, x, y, width, height);
     } else {
+        printf("Partial update #%d region (%d,%d) %dx%d\n", 
+               display->partial_update_count, x, y, width, height);
         // Hardware partial update is implemented in hardware backend
         inky_hw_partial_update(display, x, y, width, height);
     }
@@ -165,4 +187,21 @@ int inky_emulator_save_ppm(inky_t *display, const char *filename) {
     fclose(fp);
     printf("Saved display image to %s\n", filename);
     return 0;
+}
+
+bool inky_should_full_refresh(inky_t *display) {
+    if (!display) return false;
+    
+    time_t current_time = time(NULL);
+    double seconds_since_refresh = difftime(current_time, display->last_full_refresh);
+    
+    // Recommend full refresh if:
+    // 1. 5 or more partial updates have occurred, OR
+    // 2. More than 3 minutes (180 seconds) have passed since last full refresh
+    return (display->partial_update_count >= 5) || (seconds_since_refresh >= 180.0);
+}
+
+int inky_get_partial_count(inky_t *display) {
+    if (!display) return 0;
+    return display->partial_update_count;
 }

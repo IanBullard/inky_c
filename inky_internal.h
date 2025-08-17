@@ -2,6 +2,7 @@
 #define INKY_INTERNAL_H
 
 #include "inky.h"
+#include <time.h>
 
 // UC8159 Command Set
 #define UC8159_PSR   0x00  // Panel Setting
@@ -75,6 +76,10 @@ struct inky_display {
     // Flip settings
     bool h_flip;
     bool v_flip;
+    
+    // Partial update tracking (for ghosting prevention)
+    int partial_update_count;
+    time_t last_full_refresh;
 };
 
 // Common functions (shared between emulator and hardware)
