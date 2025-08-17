@@ -33,6 +33,11 @@
 #define UC8159_PWS   0xE3  // Power Saving
 #define UC8159_TSSET 0xE5  // Temperature Sensor Selection
 
+// Partial Update Commands (undocumented but supported)
+#define UC8159_PARTIAL_WINDOW 0x90  // Set Partial Window Region
+#define UC8159_PARTIAL_IN     0x91  // Enter Partial Update Mode  
+#define UC8159_PARTIAL_OUT    0x92  // Exit Partial Update Mode
+
 // GPIO Pin definitions (Raspberry Pi BCM numbering)
 #define INKY_RESET_PIN 27  // BCM27 (Physical Pin 13)
 #define INKY_BUSY_PIN  17  // BCM17 (Physical Pin 11)
@@ -84,5 +89,9 @@ void inky_hw_send_command(inky_t *display, uint8_t command);
 void inky_hw_send_data(inky_t *display, const uint8_t *data, size_t len);
 void inky_hw_busy_wait(inky_t *display);
 void inky_hw_update(inky_t *display);
+
+// Partial update hardware functions
+void inky_hw_set_partial_window(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
+void inky_hw_partial_update(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 
 #endif // INKY_INTERNAL_H

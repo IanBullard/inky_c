@@ -354,3 +354,114 @@ void inky_hw_update(inky_t *display) {
     usleep(200000);  // 200ms
 }
 
+void inky_hw_set_partial_window(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
+    if (!display || display->is_emulator) return;
+    
+    // Validate bounds
+    if (x >= display->width || y >= display->height || 
+        x + width > display->width || y + height > display->height) {
+        printf("WARNING: Partial window coordinates out of bounds\n");
+        return;
+    }
+    
+    // Set partial window command (0x90)
+    // Parameters: x_start (2 bytes), y_start (2 bytes), x_end (2 bytes), y_end (2 bytes)
+    inky_hw_send_command(display, UC8159_PARTIAL_WINDOW);
+    uint8_t window_data[8] = {
+        (x >> 8) & 0xFF,              // x_start high byte
+        x & 0xFF,                     // x_start low byte
+        (y >> 8) & 0xFF,              // y_start high byte  
+        y & 0xFF,                     // y_start low byte
+        ((x + width - 1) >> 8) & 0xFF,  // x_end high byte
+        (x + width - 1) & 0xFF,       // x_end low byte
+        ((y + height - 1) >> 8) & 0xFF, // y_end high byte
+        (y + height - 1) & 0xFF       // y_end low byte
+    };
+    inky_hw_send_data(display, window_data, 8);
+    
+    printf("Set partial window: (%d,%d) to (%d,%d)\n", x, y, x + width - 1, y + height - 1);
+}
+
+void inky_hw_partial_update(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
+    if (!display || display->is_emulator) return;
+    
+    // Validate bounds
+    if (x >= display->width || y >= display->height || 
+        x + width > display->width || y + height > display->height) {
+        printf("ERROR: Partial update coordinates out of bounds\n");
+        return;
+    }
+    
+    printf("Starting partial update for region (%d,%d) %dx%d\n", x, y, width, height);
+    
+    // Set up the display for partial update
+    inky_hw_setup(display);
+    
+    // Set partial window
+    inky_hw_set_partial_window(display, x, y, width, height);
+    
+    // Enter partial update mode
+    inky_hw_send_command(display, UC8159_PARTIAL_IN);
+    
+    // Extract the region data from the full buffer
+    size_t region_size = (width * height + 1) / 2;  // 4-bit packed pixels
+    uint8_t *region_buffer = malloc(region_size);
+    if (!region_buffer) {
+        printf("ERROR: Failed to allocate region buffer\n");
+        return;
+    }
+    
+    // Copy pixels from the region to the temporary buffer
+    size_t pixel_idx = 0;
+    for (uint16_t row = y; row < y + height; row++) {
+        for (uint16_t col = x; col < x + width; col++) {
+            // Get pixel from main buffer
+            size_t main_pixel_idx = row * display->width + col;
+            size_t main_byte_idx = main_pixel_idx / 2;
+            uint8_t pixel_value;
+            
+            if (main_pixel_idx & 1) {
+                // Odd pixel - low nibble
+                pixel_value = display->buffer[main_byte_idx] & 0x0F;
+            } else {
+                // Even pixel - high nibble
+                pixel_value = (display->buffer[main_byte_idx] >> 4) & 0x0F;
+            }
+            
+            // Store in region buffer
+            size_t region_byte_idx = pixel_idx / 2;
+            if (pixel_idx & 1) {
+                // Odd pixel - low nibble
+                region_buffer[region_byte_idx] = (region_buffer[region_byte_idx] & 0xF0) | (pixel_value & 0x0F);
+            } else {
+                // Even pixel - high nibble
+                region_buffer[region_byte_idx] = (region_buffer[region_byte_idx] & 0x0F) | ((pixel_value & 0x0F) << 4);
+            }
+            
+            pixel_idx++;
+        }
+    }
+    
+    // Send region data
+    inky_hw_send_command(display, UC8159_DTM1);
+    inky_hw_send_data(display, region_buffer, region_size);
+    
+    // Power on
+    inky_hw_send_command(display, UC8159_PON);
+    usleep(200000);  // 200ms
+    
+    // Display refresh (should be faster for partial updates)
+    inky_hw_send_command(display, UC8159_DRF);
+    inky_hw_busy_wait(display);  // Partial updates are typically 2-4 seconds
+    
+    // Power off
+    inky_hw_send_command(display, UC8159_POF);
+    usleep(200000);  // 200ms
+    
+    // Exit partial update mode
+    inky_hw_send_command(display, UC8159_PARTIAL_OUT);
+    
+    free(region_buffer);
+    printf("Partial update completed\n");
+}
+

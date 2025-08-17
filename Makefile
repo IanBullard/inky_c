@@ -25,6 +25,13 @@ BUTTON_OBJS = $(BUILD_DIR)/test_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR
 EMULATOR_BUTTON_TARGET = $(BIN_DIR)/test_emulator_buttons
 EMULATOR_BUTTON_OBJS = $(BUILD_DIR)/test_emulator_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
 
+# Partial update test program
+PARTIAL_EMULATOR_TARGET = $(BIN_DIR)/test_partial_update_emulator
+PARTIAL_EMULATOR_OBJS = $(BUILD_DIR)/test_partial_update.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
+
+PARTIAL_HARDWARE_TARGET = $(BIN_DIR)/test_partial_update_hardware
+PARTIAL_HARDWARE_OBJS = $(BUILD_DIR)/test_partial_update_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
+
 # Default target - build emulator version
 all: emulator
 
@@ -97,6 +104,32 @@ $(EMULATOR_BUTTON_TARGET): $(EMULATOR_BUTTON_OBJS)
 $(BUILD_DIR)/test_emulator_buttons.o: test_emulator_buttons.c inky.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# Partial update tests
+partial-emulator: $(PARTIAL_EMULATOR_TARGET)
+
+$(PARTIAL_EMULATOR_TARGET): $(PARTIAL_EMULATOR_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	@echo "Built emulator partial update test: $@"
+
+$(BUILD_DIR)/test_partial_update.o: test_partial_update.c inky.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+partial-hardware: 
+	@if [ "$$(uname)" != "Linux" ]; then \
+		echo "Error: Hardware partial update test can only be built on Raspberry Pi (Linux ARM)"; \
+		echo "Use 'make partial-emulator' to build the emulator version on all other platforms."; \
+		exit 1; \
+	fi
+	@echo "Building hardware partial update test for Raspberry Pi..."
+	@$(MAKE) $(PARTIAL_HARDWARE_TARGET)
+
+$(PARTIAL_HARDWARE_TARGET): $(PARTIAL_HARDWARE_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	@echo "Built hardware partial update test: $@"
+
+$(BUILD_DIR)/test_partial_update_hw.o: test_partial_update.c inky.h
+	$(CC) $(CFLAGS) -DHARDWARE_BUILD -c -o $@ test_partial_update.c
+
 # Run emulator test
 test: $(EMULATOR_TARGET)
 	@echo "Running emulator test..."
@@ -137,6 +170,8 @@ help:
 	@echo "  make hardware         - Build hardware version (Linux only)"
 	@echo "  make buttons          - Build button test program (Linux only)"
 	@echo "  make emulator-buttons - Build emulator button test (all platforms)"
+	@echo "  make partial-emulator - Build partial update test emulator (all platforms)"
+	@echo "  make partial-hardware - Build partial update test hardware (Linux only)"
 	@echo "  make test             - Run emulator test with white screen"
 	@echo "  make test-colors      - Test all 8 colors"
 	@echo "  make convert-images   - Convert PPM files to PNG (requires ImageMagick)"
@@ -144,9 +179,11 @@ help:
 	@echo "  make help             - Show this help"
 	@echo ""
 	@echo "Usage examples:"
-	@echo "  ./bin/test_clear_emulator --color 2     # Clear to green"
-	@echo "  ./bin/test_clear_hardware --color 1     # Clear hardware to white"
-	@echo "  ./bin/test_buttons                      # Test buttons (hardware only)"
-	@echo "  ./bin/test_emulator_buttons             # Test emulated buttons (all platforms)"
+	@echo "  ./bin/test_clear_emulator --color 2               # Clear to green"
+	@echo "  ./bin/test_clear_hardware --color 1               # Clear hardware to white"
+	@echo "  ./bin/test_buttons                                # Test buttons (hardware only)"
+	@echo "  ./bin/test_emulator_buttons                       # Test emulated buttons (all platforms)"
+	@echo "  ./bin/test_partial_update_emulator --test clock   # Test partial updates (emulator)"
+	@echo "  ./bin/test_partial_update_hardware --test counter # Test partial updates (hardware)"
 
-.PHONY: all emulator hardware buttons emulator-buttons test test-colors convert-images clean help
+.PHONY: all emulator hardware buttons emulator-buttons partial-emulator partial-hardware test test-colors convert-images clean help

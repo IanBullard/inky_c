@@ -49,6 +49,12 @@ void inky_set_border(inky_t *display, uint8_t color);
 // Update the physical display with buffer contents
 void inky_update(inky_t *display);
 
+// Update only a specific region of the display (faster than full update)
+// x, y: top-left corner of the region to update
+// width, height: dimensions of the region to update
+// Note: Coordinates must be within display bounds
+void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
+
 // Save current display buffer as PPM image (works with both emulator and hardware)
 // Returns 0 on success, -1 on error
 int inky_emulator_save_ppm(inky_t *display, const char *filename);

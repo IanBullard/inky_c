@@ -28,3 +28,9 @@ void inky_hw_send_command(inky_t *display, uint8_t command) { (void)display; (vo
 void inky_hw_send_data(inky_t *display, const uint8_t *data, size_t len) { (void)display; (void)data; (void)len; }
 void inky_hw_busy_wait(inky_t *display) { (void)display; }
 void inky_hw_update(inky_t *display) { (void)display; }
+void inky_hw_set_partial_window(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height) { 
+    (void)display; (void)x; (void)y; (void)width; (void)height; 
+}
+void inky_hw_partial_update(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height) { 
+    (void)display; (void)x; (void)y; (void)width; (void)height; 
+}

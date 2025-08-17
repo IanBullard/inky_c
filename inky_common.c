@@ -108,6 +108,25 @@ void inky_update(inky_t *display) {
     }
 }
 
+void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
+    if (!display) return;
+    
+    // Validate coordinates
+    if (x >= display->width || y >= display->height || 
+        x + width > display->width || y + height > display->height) {
+        printf("ERROR: Region coordinates out of bounds\n");
+        return;
+    }
+    
+    if (display->is_emulator) {
+        printf("Emulator: Partial update region (%d,%d) %dx%d (use inky_emulator_save_ppm to save image)\n", 
+               x, y, width, height);
+    } else {
+        // Hardware partial update is implemented in hardware backend
+        inky_hw_partial_update(display, x, y, width, height);
+    }
+}
+
 int inky_emulator_save_ppm(inky_t *display, const char *filename) {
     if (!display || !filename) return -1;
     
