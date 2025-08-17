@@ -1,8 +1,10 @@
-# Inky C Library
+# Inky C Library v1.1-alpha
+
+> ⚠️ **ALPHA RELEASE WARNING**: This version includes partial update functionality which is complex and has significant limitations. New users should start with stable features (full display updates and buttons) before attempting partial updates. See "Advanced Features (Alpha)" section below.
 
 A C library implementation for the Inky Impression 5.7" (600x448) 7-color e-ink display. This library provides both hardware support for Raspberry Pi and an emulator for development/testing on any platform.
 
-## Features
+## Stable Features
 
 - **Full Color Support**: All 7 colors plus clean (Black, White, Green, Blue, Red, Yellow, Orange)
 - **Dual Implementation**: 
@@ -12,8 +14,63 @@ A C library implementation for the Inky Impression 5.7" (600x448) 7-color e-ink 
 - **UC8159 Controller**: Full support for the UC8159 e-ink controller
 - **Manual GPIO Control**: Direct control of Reset, DC, CS, and Busy pins
 - **Button Support**: Full support for all 4 hardware buttons (A, B, C, D)
-- **Partial Updates**: Fast region-based updates (2-4 seconds vs 15-32 seconds)
 - **PPM Image Output**: Emulator saves display state as PPM images for testing
+
+## Alpha Features (Use with Caution)
+
+- **⚠️ Partial Updates**: Fast region-based updates (2-4 seconds vs 15-32 seconds)
+  - **WARNING**: Complex to use correctly, prone to ghosting artifacts
+  - **LIMITATION**: Only suitable for simple content (text, counters)
+  - **REQUIREMENT**: Must do full refresh every 5-6 partial updates
+  - **RECOMMENDATION**: Start with full updates only unless you need real-time performance
+
+## Quick Start (Stable Features Only)
+
+**New users should start here and avoid partial updates until familiar with the library.**
+
+### 1. Build and Test
+```bash
+# Build emulator version (works on any platform)
+make emulator
+
+# Test basic functionality
+./bin/test_clear_emulator --color 1
+```
+
+### 2. Basic Usage Example
+```c
+#include "inky.h"
+
+int main() {
+    // Initialize display  
+    inky_t *display = inky_init(true);  // true = emulator mode
+    
+    // Clear to white and draw some content
+    inky_clear(display, INKY_WHITE);
+    
+    // Draw a simple rectangle
+    for (int y = 100; y < 200; y++) {
+        for (int x = 100; x < 300; x++) {
+            inky_set_pixel(display, x, y, INKY_RED);
+        }
+    }
+    
+    // Update the entire display (15-32 seconds on hardware)
+    inky_update(display);
+    
+    // Save image (emulator only)
+    inky_emulator_save_ppm(display, "my_display.ppm");
+    
+    // Clean up
+    inky_destroy(display);
+    return 0;
+}
+```
+
+### 3. Next Steps
+- Try the button examples: `make emulator-buttons`
+- Read the hardware setup section for Raspberry Pi usage
+- Only attempt partial updates after mastering basic functionality
 
 ## Building
 
@@ -173,83 +230,6 @@ int main() {
 }
 ```
 
-### Partial Update Usage
-
-The library supports fast partial updates that only refresh specific regions of the display:
-
-```c
-#include "inky.h"
-
-int main() {
-    // Initialize display
-    inky_t *display = inky_init(false);  // Hardware mode
-    
-    // Clear entire display (full update)
-    inky_clear(display, INKY_WHITE);
-    inky_update(display);  // Takes 15-32 seconds
-    
-    // Update only a small region (much faster!)
-    for (int x = 100; x < 200; x++) {
-        for (int y = 100; y < 150; y++) {
-            inky_set_pixel(display, x, y, INKY_RED);
-        }
-    }
-    
-    // Partial update only the changed region
-    inky_update_region(display, 100, 100, 100, 50);  // Takes 2-4 seconds!
-    
-    inky_destroy(display);
-    return 0;
-}
-```
-
-**Performance Benefits:**
-- **Full Update**: 15-32 seconds, entire screen flickers
-- **Partial Update**: 2-4 seconds, only updated region flickers
-- **Use Cases**: Digital clocks, counters, live data, real-time applications
-
-**Best Practices:**
-- Use `inky_update()` for initial display setup or major changes
-- Use `inky_update_region()` for small, frequent updates
-- Ensure region coordinates are within display bounds
-- Partial updates work best for regions smaller than 25% of the screen
-
-**⚠️ IMPORTANT LIMITATIONS & GHOSTING PREVENTION:**
-
-**Ghosting**: After 5-6 partial updates, "ghost" images from previous content may appear
-- **Cause**: E-ink pigment particles don't fully realign during partial updates
-- **Solution**: Use `inky_should_full_refresh()` to check when full refresh is needed
-
-**Content Limitations - Avoid partial updates for:**
-- Complex graphics (photos, detailed images)  
-- High contrast transitions (black↔white)
-- Large solid color areas changing
-- Gradients or grayscale content
-
-**Content Suitable for partial updates:**
-- Small text changes (digits, labels)
-- Simple geometric shapes
-- Limited color transitions
-- Status indicators, counters, clocks
-
-**Smart Usage Example:**
-```c
-// Check if ghosting prevention is needed
-if (inky_should_full_refresh(display)) {
-    inky_update(display);  // Full refresh clears ghosting
-} else {
-    inky_update_region(display, x, y, w, h);  // Fast partial update
-}
-
-// Monitor partial update count
-printf("Partial updates: %d\n", inky_get_partial_count(display));
-```
-
-**Hardware Timing Constraints:**
-- Wait at least 180 seconds between full refreshes
-- Partial updates can be done more frequently
-- UC8159 controller: ~2-4 seconds for partial, 15-32 seconds for full
-
 ## Public API
 
 The library provides a clean, opaque API that hides implementation details:
@@ -285,8 +265,12 @@ bool inky_button_is_pressed(int button);                             // Check bu
 void inky_button_cleanup(void);                                       // Clean up buttons
 void inky_button_emulate_press(int button);                               // Emulate button press (emulator only)
 
-// Partial update functions - faster than full updates
-void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);  // Update specific region
+// [ALPHA] Partial update functions - complex, use with caution
+void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);  // Update specific region (ALPHA)
+
+// [ALPHA] Ghosting management helpers
+bool inky_should_full_refresh(inky_t *display);    // Check if full refresh recommended (ALPHA)
+int inky_get_partial_count(inky_t *display);       // Get partial update count (ALPHA)
 ```
 
 ## Hardware Requirements
@@ -394,6 +378,118 @@ This design ensures:
    - Use `make emulator` instead of `make hardware`
    - Hardware version only builds on Raspberry Pi
 
+## Advanced Features (Alpha) - Partial Updates
+
+> ⚠️ **CRITICAL WARNING**: Partial updates are complex and easy to misuse. Only attempt after mastering basic display functionality. Most applications should use full updates only.
+
+### When You Might Need Partial Updates
+- **Real-time displays**: Digital clocks, live counters, status indicators
+- **Performance critical**: Applications where 15-32 second updates are too slow
+- **Simple content only**: Text changes, basic shapes, single-color regions
+
+### When NOT to Use Partial Updates
+- **Learning the library**: Start with full updates first
+- **Complex graphics**: Photos, detailed images, gradients
+- **Large color changes**: High contrast transitions, big solid areas
+- **General applications**: Most use cases work fine with full updates
+
+### Decision Matrix
+
+| Content Type | Recommended Update Method | Reason |
+|-------------|---------------------------|---------|
+| Text/digits changing | `inky_update_region()` | Simple, small area |
+| Clock display | `inky_update_region()` | Real-time requirement |
+| Status indicators | `inky_update_region()` | Small, frequent changes |
+| Photos/images | `inky_update()` | Complex content causes ghosting |
+| Large graphics | `inky_update()` | Boundary effects |
+| Color changes > 25% screen | `inky_update()` | Approaches full update time |
+| Learning/prototyping | `inky_update()` | Simpler, more reliable |
+
+### Partial Update Usage (Advanced)
+
+**Basic Example:**
+```c
+#include "inky.h"
+
+int main() {
+    inky_t *display = inky_init(false);  // Hardware mode
+    
+    // Initial setup with full update
+    inky_clear(display, INKY_WHITE);
+    inky_update(display);  // 15-32 seconds
+    
+    // Small region update (much faster)
+    for (int x = 100; x < 200; x++) {
+        for (int y = 100; y < 150; y++) {
+            inky_set_pixel(display, x, y, INKY_RED);
+        }
+    }
+    
+    inky_update_region(display, 100, 100, 100, 50);  // 2-4 seconds!
+    
+    inky_destroy(display);
+    return 0;
+}
+```
+
+**Smart Ghosting Management:**
+```c
+// Check if full refresh needed (every 5-6 partial updates)
+if (inky_should_full_refresh(display)) {
+    inky_update(display);  // Clear ghosting
+} else {
+    inky_update_region(display, x, y, w, h);  // Fast update
+}
+
+// Monitor update count
+printf("Partial updates since last full: %d\n", inky_get_partial_count(display));
+```
+
+### Critical Limitations
+
+**🔴 Ghosting (Most Important)**
+- **What**: Faint "ghost" images appear after 5-6 partial updates
+- **Why**: E-ink particles don't fully realign
+- **Solution**: Use `inky_should_full_refresh()` + automatic warnings
+
+**🔴 Content Restrictions**
+- **Avoid**: Complex graphics, high contrast, large areas
+- **Use**: Simple text, counters, small indicators only
+
+**🔴 Hardware Timing**
+- **Full refresh minimum**: 180 seconds apart
+- **Partial refresh**: More frequent but accumulates ghosting
+
+**🔴 Development Complexity**
+- Requires understanding of ghosting cycles
+- Need to manage full vs partial refresh decisions
+- Content-dependent performance variations
+
+### Troubleshooting Partial Updates
+
+**Problem**: Display shows ghost images
+- **Solution**: Call `inky_update()` to clear ghosting
+- **Prevention**: Use `inky_should_full_refresh()` checks
+
+**Problem**: Partial update is slow
+- **Cause**: Region too large or complex content
+- **Solution**: Use smaller regions or full update
+
+**Problem**: Visible boundaries around updated area
+- **Cause**: Normal e-ink behavior with partial updates
+- **Solution**: Design content to minimize visibility or use full updates
+
+### Alpha API Reference
+
+```c
+// Partial update functions (ALPHA)
+void inky_update_region(inky_t *display, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
+
+// Ghosting management helpers
+bool inky_should_full_refresh(inky_t *display);  // Check if full refresh recommended
+int inky_get_partial_count(inky_t *display);    // Get partial update count
+```
+
 ## Notes
 
 - **Display Refresh Time**: 
@@ -408,7 +504,8 @@ This design ensures:
 - **Memory Efficiency**: Uses packed 4-bit pixels to minimize memory usage
 - **Version History**: 
   - `first_success`: Initial working implementation
-  - `v1.0`: Complete library with button support
+  - `v1.0`: Complete stable library with button support
+  - `v1.1-alpha`: Added partial updates (complex, use with caution)
 
 ## License
 
