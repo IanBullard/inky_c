@@ -186,18 +186,10 @@ void inky_button_poll(void) {
         // Read current GPIO state
         bool current_state = read_button_gpio(btn->gpio_fd);
         
-        if (debug_print && i == 0) {
-            printf("DEBUG: Button states (raw GPIO): A:%d B:%d C:%d D:%d\n", 
-                   read_button_gpio(button_ctx.buttons[0].gpio_fd),
-                   read_button_gpio(button_ctx.buttons[1].gpio_fd),
-                   read_button_gpio(button_ctx.buttons[2].gpio_fd),
-                   read_button_gpio(button_ctx.buttons[3].gpio_fd));
-            last_debug_time = current_time;
-        }
+        // Removed verbose GPIO state debug output
         
         // Check if state changed
         if (current_state != btn->last_state) {
-            printf("DEBUG: Button %c state change: %d -> %d\n", 'A' + i, btn->last_state, current_state);
             btn->last_change_time = current_time;
             btn->last_state = current_state;
         }
