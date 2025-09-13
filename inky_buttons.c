@@ -177,8 +177,6 @@ void inky_button_poll(void) {
     }
     
     uint64_t current_time = get_time_ms();
-    static uint64_t last_debug_time = 0;
-    bool debug_print = (current_time - last_debug_time) > 5000;  // Debug every 5 seconds
     
     for (int i = 0; i < 4; i++) {
         button_state_t *btn = &button_ctx.buttons[i];
