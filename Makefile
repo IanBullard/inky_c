@@ -1,189 +1,132 @@
+# Inky Display Library Makefile
+# Supports hardware-only, emulator, and test builds
+
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=gnu99 -D_GNU_SOURCE
-LDFLAGS = 
+CFLAGS = -Wall -Wextra -O2 -std=gnu99 -D_GNU_SOURCE -I./include
+LDFLAGS = -lm
 
-# Output directories
+# Directories
+SRC_DIR = src
+INC_DIR = include
+TEST_DIR = test
 BUILD_DIR = build
-BIN_DIR = bin
+LIB_DIR = lib
 
-# Create directories
-$(shell mkdir -p $(BUILD_DIR) $(BIN_DIR))
+# Source files
+COMMON_SRC = $(SRC_DIR)/inky_common.c
+HARDWARE_SRC = $(SRC_DIR)/inky_hardware.c
+EMULATOR_SRC = $(SRC_DIR)/inky_emulator.c
 
-# Emulator build (works on any platform)
-EMULATOR_TARGET = $(BIN_DIR)/test_clear_emulator
-EMULATOR_OBJS = $(BUILD_DIR)/test_clear.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
+# Object files
+COMMON_OBJ = $(BUILD_DIR)/inky_common.o
+HARDWARE_OBJ = $(BUILD_DIR)/inky_hardware.o
+EMULATOR_OBJ = $(BUILD_DIR)/inky_emulator.o
 
-# Hardware build (Linux only)
-HARDWARE_TARGET = $(BIN_DIR)/test_clear_hardware
-HARDWARE_OBJS = $(BUILD_DIR)/test_clear_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
+# Library targets
+LIBINKY_HW = $(LIB_DIR)/libinky_hw.a
+LIBINKY_EMU = $(LIB_DIR)/libinky_emu.a
 
-# Button test program (hardware only)
-BUTTON_TARGET = $(BIN_DIR)/test_buttons
-BUTTON_OBJS = $(BUILD_DIR)/test_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
+# Test executables
+TEST_MODELS = $(BUILD_DIR)/test_models
 
-# Emulator button test program (all platforms)
-EMULATOR_BUTTON_TARGET = $(BIN_DIR)/test_emulator_buttons
-EMULATOR_BUTTON_OBJS = $(BUILD_DIR)/test_emulator_buttons.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
-
-# Partial update test program
-PARTIAL_EMULATOR_TARGET = $(BIN_DIR)/test_partial_update_emulator
-PARTIAL_EMULATOR_OBJS = $(BUILD_DIR)/test_partial_update.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_emulator.o $(BUILD_DIR)/inky_buttons.o
-
-PARTIAL_HARDWARE_TARGET = $(BIN_DIR)/test_partial_update_hardware
-PARTIAL_HARDWARE_OBJS = $(BUILD_DIR)/test_partial_update_hw.o $(BUILD_DIR)/inky_common.o $(BUILD_DIR)/inky_hardware.o $(BUILD_DIR)/inky_buttons.o
-
-# Default target - build emulator version
+# Default target
+.PHONY: all
 all: emulator
 
-# Emulator version
-emulator: $(EMULATOR_TARGET)
+# Create build directories
+$(BUILD_DIR) $(LIB_DIR):
+	mkdir -p $@
 
-$(EMULATOR_TARGET): $(EMULATOR_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built emulator version: $@"
+# Compile common source (used by both hardware and emulator)
+$(COMMON_OBJ): $(COMMON_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/inky_emulator.o: inky_emulator.c inky_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+# Compile hardware source
+$(HARDWARE_OBJ): $(HARDWARE_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/inky_common.o: inky_common.c inky_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+# Compile emulator source
+$(EMULATOR_OBJ): $(EMULATOR_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/inky_buttons.o: inky_buttons.c inky_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-# Hardware version (Raspberry Pi only)
-hardware: 
+# Build hardware-only library (for Raspberry Pi - Linux only)
+.PHONY: hardware
+hardware:
 	@if [ "$$(uname)" != "Linux" ]; then \
-		echo "Error: Hardware version can only be built on Raspberry Pi (Linux ARM)"; \
-		echo "The hardware implementation requires Raspberry Pi SPI and GPIO interfaces."; \
-		echo "Use 'make emulator' to build the emulator version on all other platforms."; \
+		echo "Error: Hardware library can only be built on Linux (Raspberry Pi)"; \
+		echo "The hardware implementation requires Linux-specific SPI, GPIO, and I2C interfaces."; \
+		echo "Use 'make emulator' to build the emulator library for development on macOS/other platforms."; \
 		exit 1; \
 	fi
-	@echo "Building hardware version for Raspberry Pi..."
-	@$(MAKE) $(HARDWARE_TARGET)
+	@$(MAKE) $(LIBINKY_HW)
 
-$(HARDWARE_TARGET): $(HARDWARE_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built hardware version: $@"
+$(LIBINKY_HW): $(COMMON_OBJ) $(HARDWARE_OBJ) | $(LIB_DIR)
+	ar rcs $@ $^
+	@echo "Hardware library built: $@"
+	@echo "Link with: -L./lib -linky_hw"
 
-$(BUILD_DIR)/inky_hardware.o: inky_hardware.c inky_internal.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+# Build emulator library (for development/testing)
+.PHONY: emulator
+emulator: $(LIBINKY_EMU)
 
-# Common object files
-$(BUILD_DIR)/test_clear.o: test_clear.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+$(LIBINKY_EMU): $(COMMON_OBJ) $(EMULATOR_OBJ) | $(LIB_DIR)
+	ar rcs $@ $^
+	@echo "Emulator library built: $@"
+	@echo "Link with: -L./lib -linky_emu"
 
-# Hardware-specific test_clear build with HARDWARE_BUILD defined
-$(BUILD_DIR)/test_clear_hw.o: test_clear.c inky.h
-	$(CC) $(CFLAGS) -DHARDWARE_BUILD -c -o $@ test_clear.c
+# Build test programs
+.PHONY: test
+test: $(TEST_MODELS)
 
-# Button test program
-buttons: 
-	@if [ "$$(uname)" != "Linux" ]; then \
-		echo "Error: Button test can only be built on Raspberry Pi (Linux ARM)"; \
-		echo "Buttons require Linux GPIO interfaces."; \
-		exit 1; \
-	fi
-	@echo "Building button test for Raspberry Pi..."
-	@$(MAKE) $(BUTTON_TARGET)
+$(TEST_MODELS): $(TEST_DIR)/test_models.c $(LIBINKY_EMU) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $< -L./$(LIB_DIR) -linky_emu $(LDFLAGS) -o $@
+	@echo "Test executable built: $@"
 
-$(BUTTON_TARGET): $(BUTTON_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built button test: $@"
-
-$(BUILD_DIR)/test_buttons.o: test_buttons.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-# Emulator button test
-emulator-buttons: $(EMULATOR_BUTTON_TARGET)
-
-$(EMULATOR_BUTTON_TARGET): $(EMULATOR_BUTTON_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built emulator button test: $@"
-
-$(BUILD_DIR)/test_emulator_buttons.o: test_emulator_buttons.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-# Partial update tests
-partial-emulator: $(PARTIAL_EMULATOR_TARGET)
-
-$(PARTIAL_EMULATOR_TARGET): $(PARTIAL_EMULATOR_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built emulator partial update test: $@"
-
-$(BUILD_DIR)/test_partial_update.o: test_partial_update.c inky.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-partial-hardware: 
-	@if [ "$$(uname)" != "Linux" ]; then \
-		echo "Error: Hardware partial update test can only be built on Raspberry Pi (Linux ARM)"; \
-		echo "Use 'make partial-emulator' to build the emulator version on all other platforms."; \
-		exit 1; \
-	fi
-	@echo "Building hardware partial update test for Raspberry Pi..."
-	@$(MAKE) $(PARTIAL_HARDWARE_TARGET)
-
-$(PARTIAL_HARDWARE_TARGET): $(PARTIAL_HARDWARE_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	@echo "Built hardware partial update test: $@"
-
-$(BUILD_DIR)/test_partial_update_hw.o: test_partial_update.c inky.h
-	$(CC) $(CFLAGS) -DHARDWARE_BUILD -c -o $@ test_partial_update.c
-
-# Run emulator test
-test: $(EMULATOR_TARGET)
-	@echo "Running emulator test..."
-	$(EMULATOR_TARGET) --emulator --color 1
-	@echo "Display image saved to display.ppm"
-	@echo "To view: open display.ppm (or convert to PNG)"
-
-# Run with different colors
-test-colors: $(EMULATOR_TARGET)
-	@echo "Testing all colors..."
-	@for i in 0 1 2 3 4 5 6 7; do \
-		echo "Testing color $$i..."; \
-		$(EMULATOR_TARGET) --emulator --color $$i --output display_color_$$i.ppm; \
-	done
-	@echo "Generated display_color_*.ppm files"
-
-# Convert PPM to PNG (requires ImageMagick)
-convert-images:
-	@which convert > /dev/null 2>&1 || (echo "ImageMagick not found. Install with: brew install imagemagick" && exit 1)
-	@for ppm in *.ppm; do \
-		if [ -f "$$ppm" ]; then \
-			png="$${ppm%.ppm}.png"; \
-			echo "Converting $$ppm to $$png..."; \
-			convert "$$ppm" "$$png"; \
-		fi \
-	done
+# Run tests
+.PHONY: run-test
+run-test: $(TEST_MODELS)
+	@echo "Running display model tests..."
+	@cd $(BUILD_DIR) && ./test_models
+	@echo ""
+	@echo "Test images generated in $(BUILD_DIR)/"
 
 # Clean build artifacts
+.PHONY: clean
 clean:
-	rm -rf $(BUILD_DIR) $(BIN_DIR)
-	rm -f *.ppm *.png
+	rm -rf $(BUILD_DIR) $(LIB_DIR)
+	@echo "Cleaned build artifacts"
 
-# Help
+# Clean everything including test outputs
+.PHONY: distclean
+distclean: clean
+	rm -f $(TEST_DIR)/*.ppm
+	@echo "Cleaned all generated files"
+
+# Help target
+.PHONY: help
 help:
-	@echo "Inky C Library - Makefile targets:"
+	@echo "Inky Display Library - Build Targets:"
 	@echo ""
-	@echo "  make emulator         - Build emulator version (default)"
-	@echo "  make hardware         - Build hardware version (Linux only)"
-	@echo "  make buttons          - Build button test program (Linux only)"
-	@echo "  make emulator-buttons - Build emulator button test (all platforms)"
-	@echo "  make partial-emulator - Build partial update test emulator (all platforms)"
-	@echo "  make partial-hardware - Build partial update test hardware (Linux only)"
-	@echo "  make test             - Run emulator test with white screen"
-	@echo "  make test-colors      - Test all 8 colors"
-	@echo "  make convert-images   - Convert PPM files to PNG (requires ImageMagick)"
-	@echo "  make clean            - Remove build artifacts"
-	@echo "  make help             - Show this help"
+	@echo "  make hardware     - Build hardware-only library (libinky_hw.a)"
+	@echo "                      Use this for Raspberry Pi deployment"
 	@echo ""
-	@echo "Usage examples:"
-	@echo "  ./bin/test_clear_emulator --color 2               # Clear to green"
-	@echo "  ./bin/test_clear_hardware --color 1               # Clear hardware to white"
-	@echo "  ./bin/test_buttons                                # Test buttons (hardware only)"
-	@echo "  ./bin/test_emulator_buttons                       # Test emulated buttons (all platforms)"
-	@echo "  ./bin/test_partial_update_emulator --test clock   # Test partial updates (emulator)"
-	@echo "  ./bin/test_partial_update_hardware --test counter # Test partial updates (hardware)"
+	@echo "  make emulator     - Build emulator library (libinky_emu.a) [default]"
+	@echo "                      Use this for development and testing"
+	@echo ""
+	@echo "  make test         - Build test programs using emulator"
+	@echo ""
+	@echo "  make run-test     - Build and run test programs"
+	@echo ""
+	@echo "  make all          - Build emulator (same as 'make emulator')"
+	@echo ""
+	@echo "  make clean        - Remove build artifacts"
+	@echo ""
+	@echo "  make distclean    - Remove all generated files including test images"
+	@echo ""
+	@echo "Library API: include/inky.h"
+	@echo ""
+	@echo "Examples:"
+	@echo "  Compile for hardware: make clean && make hardware"
+	@echo "  Compile for testing:  make clean && make test run-test"
 
-.PHONY: all emulator hardware buttons emulator-buttons partial-emulator partial-hardware test test-colors convert-images clean help
+.PHONY: all emulator hardware test run-test clean distclean help
