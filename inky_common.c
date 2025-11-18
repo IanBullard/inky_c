@@ -4,19 +4,36 @@
 #include <string.h>
 #include <time.h>
 
-// Initialize common display structure
-inky_t* inky_init_common(bool emulator) {
+// Initialize common display structure with specific model
+inky_t* inky_init_common_model(inky_model_t model, bool emulator) {
     inky_t *display = calloc(1, sizeof(inky_t));
     if (!display) {
         return NULL;
     }
-    
-    display->width = INKY_WIDTH;
-    display->height = INKY_HEIGHT;
+
+    display->model = model;
     display->is_emulator = emulator;
     display->border_color = INKY_WHITE;
     display->h_flip = false;
     display->v_flip = false;
+
+    // Set dimensions based on model
+    switch (model) {
+        case INKY_IMPRESSION_5_7:
+            display->width = INKY_5_7_WIDTH;
+            display->height = INKY_5_7_HEIGHT;
+            break;
+        case INKY_IMPRESSION_13_3:
+            display->width = INKY_13_3_WIDTH;
+            display->height = INKY_13_3_HEIGHT;
+            break;
+        default:
+            // Default to 5.7" for backward compatibility
+            display->width = INKY_5_7_WIDTH;
+            display->height = INKY_5_7_HEIGHT;
+            display->model = INKY_IMPRESSION_5_7;
+            break;
+    }
     
     // Calculate buffer size - 4 bits per pixel, packed
     display->buffer_size = (display->width * display->height + 1) / 2;
@@ -35,6 +52,11 @@ inky_t* inky_init_common(bool emulator) {
     display->last_full_refresh = time(NULL);
     
     return display;
+}
+
+// Initialize common display structure (backward compatibility - defaults to 5.7")
+inky_t* inky_init_common(bool emulator) {
+    return inky_init_common_model(INKY_IMPRESSION_5_7, emulator);
 }
 
 void inky_destroy_common(inky_t *display) {

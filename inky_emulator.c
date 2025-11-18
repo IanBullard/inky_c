@@ -3,14 +3,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Initialize with auto-detection (defaults to 5.7" for emulator)
 inky_t* inky_init(bool emulator) {
     if (!emulator) {
         // Hardware initialization is in inky_hardware.c
         return NULL;
     }
-    
-    // Use common initialization
-    return inky_init_common(true);
+
+    // Use common initialization with default 5.7" model
+    return inky_init_common_model(INKY_IMPRESSION_5_7, true);
+}
+
+// Initialize with specific model
+inky_t* inky_init_model(inky_model_t model, bool emulator) {
+    if (!emulator) {
+        // Hardware initialization is in inky_hardware.c
+        return NULL;
+    }
+
+    // Use common initialization with specified model
+    return inky_init_common_model(model, true);
 }
 
 void inky_destroy(inky_t *display) {
@@ -18,6 +30,11 @@ void inky_destroy(inky_t *display) {
     
     // Use common cleanup (no hardware-specific cleanup needed for emulator)
     inky_destroy_common(display);
+}
+
+// Stub function for display detection (returns default for emulator)
+inky_model_t inky_detect_display(void) {
+    return INKY_IMPRESSION_5_7;  // Default to 5.7" for emulator
 }
 
 // Stub functions for hardware operations (not used in emulator)

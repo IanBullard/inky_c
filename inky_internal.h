@@ -51,8 +51,21 @@
 #define INKY_BUTTON_C_PIN 16  // BCM16 (Physical Pin 36)
 #define INKY_BUTTON_D_PIN 24  // BCM24 (Physical Pin 18)
 
+// EEPROM constants for display detection
+#define EEPROM_I2C_ADDR 0x50
+#define EEPROM_DISPLAY_VARIANT_ADDR 0x1C  // Location of display variant in EEPROM
+#define EEPROM_WIDTH_ADDR 0x16            // Width (2 bytes, little-endian)
+#define EEPROM_HEIGHT_ADDR 0x18           // Height (2 bytes, little-endian)
+
+// Display variant IDs from EEPROM
+#define VARIANT_5_7_UC8159   14  // 5.7" 600x448 7-color
+#define VARIANT_13_3_SPECTRA6 21  // 13.3" 1600x1200 Spectra 6
+
 // Internal display structure (implementation exposed to backends)
 struct inky_display {
+    // Display model
+    inky_model_t model;
+
     // Display properties
     uint16_t width;
     uint16_t height;
@@ -84,7 +97,11 @@ struct inky_display {
 
 // Common functions (shared between emulator and hardware)
 inky_t* inky_init_common(bool emulator);
+inky_t* inky_init_common_model(inky_model_t model, bool emulator);
 void inky_destroy_common(inky_t *display);
+
+// Display detection function (hardware only)
+inky_model_t inky_detect_display(void);
 
 // Hardware-specific internal functions
 bool inky_hw_init_gpio(inky_t *display);

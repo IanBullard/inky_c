@@ -16,6 +16,7 @@
 #ifdef __linux__
 #include <linux/spi/spidev.h>
 #include <linux/gpio.h>
+#include <linux/i2c-dev.h>
 #else
 // Stub definitions for non-Linux platforms
 #define GPIOHANDLE_REQUEST_OUTPUT 0
@@ -44,18 +45,72 @@ struct gpiohandle_data {
 
 #define SPI_DEVICE "/dev/spidev0.0"
 #define GPIO_DEVICE "/dev/gpiochip0"
+#define I2C_DEVICE "/dev/i2c-1"  // Raspberry Pi I2C bus 1
 #define SPI_SPEED_HZ 3000000
 #define SPI_MODE 0
 #define SPI_BITS_PER_WORD 8
 
+// Display detection function - reads EEPROM to identify connected display
+inky_model_t inky_detect_display(void) {
+    int i2c_fd = open(I2C_DEVICE, O_RDWR);
+    if (i2c_fd < 0) {
+        printf("Warning: Failed to open I2C device, defaulting to 5.7\" display\n");
+        return INKY_IMPRESSION_5_7;
+    }
+
+    // Set I2C slave address to EEPROM
+    if (ioctl(i2c_fd, I2C_SLAVE, EEPROM_I2C_ADDR) < 0) {
+        printf("Warning: Failed to set I2C address, defaulting to 5.7\" display\n");
+        close(i2c_fd);
+        return INKY_IMPRESSION_5_7;
+    }
+
+    // Read display variant from EEPROM
+    uint8_t variant;
+    if (lseek(i2c_fd, EEPROM_DISPLAY_VARIANT_ADDR, SEEK_SET) < 0 ||
+        read(i2c_fd, &variant, 1) != 1) {
+        // Try simpler approach - write address then read
+        uint8_t addr = EEPROM_DISPLAY_VARIANT_ADDR;
+        if (write(i2c_fd, &addr, 1) != 1 ||
+            read(i2c_fd, &variant, 1) != 1) {
+            printf("Warning: Failed to read EEPROM variant, defaulting to 5.7\" display\n");
+            close(i2c_fd);
+            return INKY_IMPRESSION_5_7;
+        }
+    }
+
+    close(i2c_fd);
+
+    // Map variant ID to model
+    switch (variant) {
+        case VARIANT_5_7_UC8159:
+        case 15:  // Alternative 5.7" variant
+        case 16:  // Another 5.7" variant
+            printf("Detected: Inky Impression 5.7\" (600x448)\n");
+            return INKY_IMPRESSION_5_7;
+
+        case VARIANT_13_3_SPECTRA6:
+            printf("Detected: Inky Impression 13.3\" (1600x1200)\n");
+            return INKY_IMPRESSION_13_3;
+
+        default:
+            printf("Warning: Unknown display variant %d, defaulting to 5.7\"\n", variant);
+            return INKY_IMPRESSION_5_7;
+    }
+}
+
+// Initialize with auto-detection
 inky_t* inky_init(bool emulator) {
     if (emulator) {
         fprintf(stderr, "Error: This is the hardware build. Use the emulator build for emulation.\n");
         return NULL;
     }
-    
-    // Use common initialization
-    inky_t *display = inky_init_common(false);
+
+    // Auto-detect display model
+    inky_model_t model = inky_detect_display();
+
+    // Use common initialization with detected model
+    inky_t *display = inky_init_common_model(model, false);
     if (!display) {
         return NULL;
     }
@@ -92,6 +147,54 @@ inky_t* inky_init(bool emulator) {
     // Setup the display
     inky_hw_setup(display);
     
+    return display;
+}
+
+// Initialize with specific model
+inky_t* inky_init_model(inky_model_t model, bool emulator) {
+    if (emulator) {
+        fprintf(stderr, "Error: This is the hardware build. Use the emulator build for emulation.\n");
+        return NULL;
+    }
+
+    // Use common initialization with specified model
+    inky_t *display = inky_init_common_model(model, false);
+    if (!display) {
+        return NULL;
+    }
+
+    // Initialize SPI
+    display->spi_fd = open(SPI_DEVICE, O_RDWR);
+    if (display->spi_fd < 0) {
+        perror("Failed to open SPI device");
+        inky_destroy_common(display);
+        return NULL;
+    }
+
+    // Configure SPI
+    uint8_t mode = SPI_MODE | SPI_NO_CS;
+    uint8_t bits = SPI_BITS_PER_WORD;
+    uint32_t speed = SPI_SPEED_HZ;
+
+    if (ioctl(display->spi_fd, SPI_IOC_WR_MODE, &mode) < 0 ||
+        ioctl(display->spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bits) < 0 ||
+        ioctl(display->spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0) {
+        perror("Failed to configure SPI");
+        close(display->spi_fd);
+        inky_destroy_common(display);
+        return NULL;
+    }
+
+    // Initialize GPIO
+    if (!inky_hw_init_gpio(display)) {
+        close(display->spi_fd);
+        inky_destroy_common(display);
+        return NULL;
+    }
+
+    // Setup the display
+    inky_hw_setup(display);
+
     return display;
 }
 
@@ -268,13 +371,13 @@ void inky_hw_reset(inky_t *display) {
 
 void inky_hw_setup(inky_t *display) {
     if (!display || display->is_emulator) return;
-    
+
     // Reset the display
     inky_hw_reset(display);
-    
-    // Send initialization commands
-    
-    // Resolution Setting (600x448)
+
+    // Send initialization commands based on model
+
+    // Resolution Setting
     inky_hw_send_command(display, UC8159_TRES);
     uint8_t res_data[4] = {
         (display->width >> 8) & 0xFF,
@@ -283,14 +386,22 @@ void inky_hw_setup(inky_t *display) {
         display->height & 0xFF
     };
     inky_hw_send_data(display, res_data, 4);
-    
-    // Panel Setting
-    // 0b11 = 600x448 resolution
+
+    // Panel Setting - model specific
     inky_hw_send_command(display, UC8159_PSR);
-    uint8_t psr_data[2] = {
-        (0x03 << 6) | 0x2F,  // Resolution 600x448, other settings
-        0x08                  // 7-color mode
-    };
+    uint8_t psr_data[2];
+
+    if (display->model == INKY_IMPRESSION_13_3) {
+        // 13.3" display uses different PSR settings
+        // Based on Python library: 0xDF, 0x69 for EL133UF1
+        psr_data[0] = 0xDF;  // Resolution bits for 1600x1200 and other settings
+        psr_data[1] = 0x69;  // Spectra 6 color mode
+    } else {
+        // 5.7" display (default)
+        // 0b11 = 600x448 resolution
+        psr_data[0] = (0x03 << 6) | 0x2F;  // Resolution 600x448, other settings
+        psr_data[1] = 0x08;                // 7-color mode
+    }
     inky_hw_send_data(display, psr_data, 2);
     
     // Power Settings

@@ -5,9 +5,21 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-// Display dimensions for Inky Impression 5.7"
-#define INKY_WIDTH  600
-#define INKY_HEIGHT 448
+// Display model enumeration
+typedef enum {
+    INKY_IMPRESSION_5_7,    // 600x448 UC8159 controller
+    INKY_IMPRESSION_13_3    // 1600x1200 EL133UF1 controller
+} inky_model_t;
+
+// Display dimensions - deprecated, use inky_get_width/height instead
+#define INKY_WIDTH  600   // Default for 5.7" for backward compatibility
+#define INKY_HEIGHT 448   // Default for 5.7" for backward compatibility
+
+// Model-specific dimensions
+#define INKY_5_7_WIDTH   600
+#define INKY_5_7_HEIGHT  448
+#define INKY_13_3_WIDTH  1600
+#define INKY_13_3_HEIGHT 1200
 
 // Color definitions
 #define INKY_BLACK  0
@@ -28,8 +40,12 @@
 // Opaque display context - implementation details hidden
 typedef struct inky_display inky_t;
 
-// Initialize display (emulator or hardware based on parameter)
+// Initialize display with auto-detection (emulator or hardware based on parameter)
+// Auto-detects display model from EEPROM on hardware, uses default 5.7" for emulator
 inky_t* inky_init(bool emulator);
+
+// Initialize display with specific model (for cases where auto-detection fails or testing)
+inky_t* inky_init_model(inky_model_t model, bool emulator);
 
 // Clean up and free resources
 void inky_destroy(inky_t *display);
