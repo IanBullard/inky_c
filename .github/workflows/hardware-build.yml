@@ -15,10 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: self-hosted
+          - runner: [self-hosted, Linux, ARM32, Pi]
             arch: armv7l
             name: "Raspberry Pi (32-bit)"
-          - runner: self-hosted
+          - runner: [self-hosted, Linux, ARM64, Pi]
             arch: aarch64
             name: "Raspberry Pi (64-bit)"
 
