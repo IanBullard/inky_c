@@ -57,3 +57,7 @@ dkms.conf
 bin
 build
 *.ppm
+
+# macOS
+.DS_Store
+._*
