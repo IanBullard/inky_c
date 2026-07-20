@@ -1,7 +1,5 @@
 # inky_c
 
-Model: haiku
-
 C library for Inky Impression 7-color e-ink displays. Supports both Raspberry Pi hardware and cross-platform emulator.
 
 ## Quick Reference
