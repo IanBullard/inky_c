@@ -2,12 +2,11 @@
 # Supports hardware-only, emulator, and test builds
 
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -std=gnu99 -D_GNU_SOURCE -I./include
+CFLAGS = -Wall -Wextra -O2 -std=gnu99 -D_GNU_SOURCE -Iinclude/
 LDFLAGS = -lm
 
 # Directories
 SRC_DIR = src
-INC_DIR = include
 TEST_DIR = test
 BUILD_DIR = build
 LIB_DIR = lib
@@ -30,7 +29,6 @@ LIBINKY_EMU = $(LIB_DIR)/libinky_emu.a
 TEST_MODELS = $(BUILD_DIR)/test_models
 
 # Default target
-.PHONY: all
 all: emulator
 
 # Create build directories
@@ -38,19 +36,18 @@ $(BUILD_DIR) $(LIB_DIR):
 	mkdir -p $@
 
 # Compile common source (used by both hardware and emulator)
-$(COMMON_OBJ): $(COMMON_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+$(COMMON_OBJ): $(COMMON_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile hardware source
-$(HARDWARE_OBJ): $(HARDWARE_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+$(HARDWARE_OBJ): $(HARDWARE_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile emulator source
-$(EMULATOR_OBJ): $(EMULATOR_SRC) $(INC_DIR)/inky.h $(INC_DIR)/inky_internal.h | $(BUILD_DIR)
+$(EMULATOR_OBJ): $(EMULATOR_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Build hardware-only library (for Raspberry Pi - Linux only)
-.PHONY: hardware
 hardware:
 	@if [ "$$(uname)" != "Linux" ]; then \
 		echo "Error: Hardware library can only be built on Linux (Raspberry Pi)"; \
@@ -66,7 +63,6 @@ $(LIBINKY_HW): $(COMMON_OBJ) $(HARDWARE_OBJ) | $(LIB_DIR)
 	@echo "Link with: -L./lib -linky_hw"
 
 # Build emulator library (for development/testing)
-.PHONY: emulator
 emulator: $(LIBINKY_EMU)
 
 $(LIBINKY_EMU): $(COMMON_OBJ) $(EMULATOR_OBJ) | $(LIB_DIR)
@@ -75,7 +71,6 @@ $(LIBINKY_EMU): $(COMMON_OBJ) $(EMULATOR_OBJ) | $(LIB_DIR)
 	@echo "Link with: -L./lib -linky_emu"
 
 # Build test programs
-.PHONY: test
 test: $(TEST_MODELS)
 
 $(TEST_MODELS): $(TEST_DIR)/test_models.c $(LIBINKY_EMU) | $(BUILD_DIR)
@@ -83,7 +78,6 @@ $(TEST_MODELS): $(TEST_DIR)/test_models.c $(LIBINKY_EMU) | $(BUILD_DIR)
 	@echo "Test executable built: $@"
 
 # Run tests
-.PHONY: run-test
 run-test: $(TEST_MODELS)
 	@echo "Running display model tests..."
 	@cd $(BUILD_DIR) && ./test_models
@@ -91,19 +85,16 @@ run-test: $(TEST_MODELS)
 	@echo "Test images generated in $(BUILD_DIR)/"
 
 # Clean build artifacts
-.PHONY: clean
 clean:
 	rm -rf $(BUILD_DIR) $(LIB_DIR)
 	@echo "Cleaned build artifacts"
 
 # Clean everything including test outputs
-.PHONY: distclean
 distclean: clean
 	rm -f $(TEST_DIR)/*.ppm
 	@echo "Cleaned all generated files"
 
 # Help target
-.PHONY: help
 help:
 	@echo "Inky Display Library - Build Targets:"
 	@echo ""
