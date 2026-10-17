@@ -54,8 +54,8 @@ dkms.conf
 # debug information files
 *.dwo
 
-bin
-build
+/bin/
+/build/
 *.ppm
 
 # macOS

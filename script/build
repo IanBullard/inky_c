@@ -1,0 +1,17 @@
+#!/bin/sh
+# Configure and build the library.
+#   script/build             emulator backend (any platform) -> build/emulator
+#   script/build hardware    Raspberry Pi backend (Linux only) -> build/hardware
+set -e
+
+cd "$(dirname "$0")/.."
+
+backend="${1:-emulator}"
+case "$backend" in
+    emulator) emulator=ON ;;
+    hardware) emulator=OFF ;;
+    *) echo "usage: script/build [emulator|hardware]" >&2; exit 2 ;;
+esac
+
+cmake -S . -B "build/$backend" -DBUILD_EMULATOR="$emulator"
+cmake --build "build/$backend"
