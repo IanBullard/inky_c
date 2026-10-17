@@ -2,84 +2,26 @@ name: Emulator Build
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
   build-emulator:
-    name: Build Emulator Library
-    runs-on: ${{ matrix.runner }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            runner: ubuntu-latest
-          - os: macos
-            runner: [self-hosted, macOS, ARM64]
-          - os: windows-latest
-            runner: windows-latest
+    name: Build and test emulator library
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup build environment (Ubuntu/macOS)
-      if: runner.os != 'Windows'
-      run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-        fi
+    - name: Build and run tests
+      run: script/test
 
-    - name: Setup build environment (Windows)
-      if: runner.os == 'Windows'
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: >-
-          mingw-w64-x86_64-gcc
-          make
-
-    - name: Build emulator library (Ubuntu/macOS)
-      if: runner.os != 'Windows'
-      run: |
-        make clean
-        make emulator
-
-    - name: Build emulator library (Windows)
-      if: runner.os == 'Windows'
-      shell: msys2 {0}
-      run: |
-        make clean
-        make emulator
-
-    - name: Build and run tests (Ubuntu/macOS)
-      if: runner.os != 'Windows'
-      run: |
-        make test
-        make run-test
-
-    - name: Build and run tests (Windows)
-      if: runner.os == 'Windows'
-      shell: msys2 {0}
-      run: |
-        make test
-        make run-test
-
-    - name: Upload test artifacts
+    - name: Upload test images
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-images-${{ matrix.os }}
-        path: build/*.ppm
+        name: test-images
+        path: build/emulator/*.ppm
         if-no-files-found: warn
-
-    - name: Upload library artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: libinky-emulator-${{ matrix.os }}
-        path: lib/libinky_emu.a

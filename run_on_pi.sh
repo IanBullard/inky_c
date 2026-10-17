@@ -1,26 +1,13 @@
-#!/bin/bash
+#!/bin/sh
+# Build the hardware library on a Raspberry Pi.
+# Run this on the Pi itself; output is build/hardware/libinky.a
+set -e
 
-# Script to build and run the hardware version on Raspberry Pi
-# This script should be run on the Raspberry Pi
+cd "$(dirname "$0")"
 
-echo "Building hardware version for Raspberry Pi..."
-make clean
-make hardware
-
-if [ $? -ne 0 ]; then
-    echo "Build failed!"
-    exit 1
-fi
+echo "Building hardware library for Raspberry Pi..."
+rm -rf build/hardware
+script/build hardware
 
 echo ""
-echo "Build successful!"
-echo ""
-echo "To test clearing the display:"
-echo "  sudo ./bin/test_clear_hardware --color 1    # Clear to white"
-echo "  sudo ./bin/test_clear_hardware --color 0    # Clear to black"
-echo ""
-echo "Note: sudo is required for GPIO/SPI access"
-echo "Note: Display refresh can take up to 32 seconds"
-echo ""
-echo "Running test now (clearing to white)..."
-sudo ./bin/test_clear_hardware --color 1
+echo "Build successful: build/hardware/libinky.a"

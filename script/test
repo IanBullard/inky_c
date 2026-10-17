@@ -1,0 +1,9 @@
+#!/bin/sh
+# Build the emulator backend and run the test suite.
+# Test images (*.ppm) are written to build/emulator/.
+set -e
+
+cd "$(dirname "$0")/.."
+
+script/build emulator
+ctest --test-dir build/emulator --output-on-failure
